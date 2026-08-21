@@ -1,7 +1,6 @@
 # 🛡️ Visual Consistency & Evidence Engine
 
 > **Explainable visual evidence and multimodal risk fusion for merchant onboarding and risk operations.**
-> Submitted to Razorpay AI Buildathon — Track 02: AI Risk Manager
 
 ---
 
