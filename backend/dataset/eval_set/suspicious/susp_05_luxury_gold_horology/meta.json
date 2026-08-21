@@ -1,0 +1,18 @@
+{
+  "name": "Crown & Dial Horology",
+  "category": "Luxury Watches",
+  "claimed_brand": "Apex Brands",
+  "ground_truth": "HIGH",
+  "claims": {
+    "inventory_claim": "Exclusive authorized inventory and direct stock of Luxury Watches.",
+    "brand_claim": "Official authorized global flagship store for Apex Brands.",
+    "compliance_claim": "Statutory Ministry Incorporation Certificate."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": true,
+    "has_pricing": true,
+    "has_about": true,
+    "social_links": []
+  }
+}

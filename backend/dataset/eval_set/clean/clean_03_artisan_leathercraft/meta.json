@@ -1,0 +1,20 @@
+{
+  "name": "Heritage Hide Guild",
+  "category": "Custom Leather Goods",
+  "claimed_brand": "Heritage Hide",
+  "ground_truth": "LOW",
+  "claims": {
+    "inventory_claim": "Original handcrafted proprietary catalog by Heritage Hide Guild.",
+    "brand_claim": "Registered artisanal trademark for Heritage Hide.",
+    "compliance_claim": "Statutory Certificate of Incorporation."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": true,
+    "has_pricing": true,
+    "has_about": true,
+    "social_links": [
+      "https://ig.com/heritagehide"
+    ]
+  }
+}

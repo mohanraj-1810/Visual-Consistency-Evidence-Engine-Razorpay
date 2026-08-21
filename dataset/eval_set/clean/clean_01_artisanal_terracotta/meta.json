@@ -1,0 +1,20 @@
+{
+  "name": "Terracotta Heritage Studio",
+  "category": "Handmade Ceramics",
+  "claimed_brand": "Terracotta Heritage",
+  "ground_truth": "LOW",
+  "claims": {
+    "inventory_claim": "Original handcrafted proprietary catalog by Terracotta Heritage Studio.",
+    "brand_claim": "Registered artisanal trademark for Terracotta Heritage.",
+    "compliance_claim": "Statutory Certificate of Incorporation."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": true,
+    "has_pricing": true,
+    "has_about": true,
+    "social_links": [
+      "https://ig.com/terracotta"
+    ]
+  }
+}

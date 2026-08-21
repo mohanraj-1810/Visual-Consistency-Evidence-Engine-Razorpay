@@ -1,0 +1,18 @@
+{
+  "name": "Sonic Direct Hub",
+  "category": "Consumer Audio",
+  "claimed_brand": "Sonic Direct",
+  "ground_truth": "MEDIUM",
+  "claims": {
+    "inventory_claim": "Regional multi-brand catalog for Consumer Audio.",
+    "brand_claim": "Sub-licensed distribution partner under Sonic Direct.",
+    "compliance_claim": "Standard digital registration copy."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": true,
+    "has_pricing": false,
+    "has_about": false,
+    "social_links": []
+  }
+}

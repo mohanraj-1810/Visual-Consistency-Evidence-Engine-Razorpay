@@ -1,0 +1,18 @@
+{
+  "name": "Moda Lifestyle Trading",
+  "category": "Lifestyle Accessories",
+  "claimed_brand": "Moda Direct",
+  "ground_truth": "MEDIUM",
+  "claims": {
+    "inventory_claim": "Regional multi-brand catalog for Lifestyle Accessories.",
+    "brand_claim": "Sub-licensed distribution partner under Moda Direct.",
+    "compliance_claim": "Standard digital registration copy."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": false,
+    "has_pricing": false,
+    "has_about": true,
+    "social_links": []
+  }
+}
