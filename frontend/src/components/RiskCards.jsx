@@ -29,7 +29,6 @@ export default function RiskCards({ fusion }) {
 
       <div className="risk-cards-grid">
 
-
       
         {/* Card 1: Text Risk */}
         <div className="risk-card">
