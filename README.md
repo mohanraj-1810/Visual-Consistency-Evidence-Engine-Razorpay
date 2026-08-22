@@ -175,3 +175,5 @@ python backend/evaluation/evaluate_pipeline.py
 ## 7. Operational Guidelines
 
 **Disclaimer:** This system is an **analyst decision-support prototype**. It generates empirical visual evidence signals, similarity metrics, and forensic heatmaps designed to assist human risk reviewers. It is **not** intended to automatically reject merchants without human oversight.
+
+# Visual-Consistency-Evidence-Engine-Razorpay
