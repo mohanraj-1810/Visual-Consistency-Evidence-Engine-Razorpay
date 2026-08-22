@@ -82,5 +82,29 @@ async def health_check():
 
 
 if __name__ == "__main__":
+    import argparse
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+    parser = argparse.ArgumentParser(
+        description="🛡️ Visual Consistency & Evidence Engine — Backend API Server",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host IP address to bind the API server")
+    parser.add_argument("--port", type=int, default=8000, help="Port number for the API server")
+    parser.add_argument("--reload", action="store_true", default=True, help="Enable auto-reload on code changes")
+    parser.add_argument("--no-reload", dest="reload", action="store_false", help="Disable auto-reload")
+    parser.add_argument("--workers", type=int, default=1, help="Number of worker processes")
+
+    args = parser.parse_args()
+
+    print("=" * 70)
+    print(" 🛡️  Visual Consistency & Evidence Engine — API Server")
+    print("=" * 70)
+    print(f" • Server URL:         http://{args.host if args.host != '0.0.0.0' else 'localhost'}:{args.port}")
+    print(f" • Interactive Docs:   http://{args.host if args.host != '0.0.0.0' else 'localhost'}:{args.port}/docs")
+    print(f" • Health Endpoint:    http://{args.host if args.host != '0.0.0.0' else 'localhost'}:{args.port}/health")
+    print(f" • Auto-Reload:        {'Enabled' if args.reload else 'Disabled'}")
+    print("=" * 70)
+
+    uvicorn.run("main:app", host=args.host, port=args.port, reload=args.reload, workers=args.workers)
+

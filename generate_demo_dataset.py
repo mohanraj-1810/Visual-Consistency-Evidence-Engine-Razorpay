@@ -9,10 +9,20 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 import numpy as np
 import cv2
+
+# Ensure UTF-8 output across Windows, Linux and macOS
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 
 
 def draw_realistic_watch(size=(450, 450), color_scheme="luxury") -> Image.Image:
@@ -676,9 +686,76 @@ def build_held_out_evaluation_dataset():
             with open(bdir / "meta.json", "w") as f:
                 json.dump(meta, f, indent=2)
 
-    print(f"Held-out evaluation dataset (18 merchant cases across Clean, Suspicious, Borderline) generated in backend/dataset/eval_set/ and dataset/eval_set/")
+    print(f" [✓] Held-out evaluation dataset (18 merchant cases across Clean, Suspicious, Borderline) generated.")
+
+
+def main():
+    import argparse
+    import time
+
+    parser = argparse.ArgumentParser(
+        description="🛡️ Visual Consistency & Evidence Engine — Synthetic Dataset Generator",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--all",
+        action="store_true",
+        default=True,
+        help="Generate both interactive demo cases and held-out evaluation suite (default)",
+    )
+    group.add_argument(
+        "--demo-only",
+        action="store_true",
+        help="Generate only the 3 interactive demo merchant cases and catalog reference assets",
+    )
+    group.add_argument(
+        "--eval-only",
+        action="store_true",
+        help="Generate only the 18 held-out evaluation benchmark cases",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress non-essential progress output",
+    )
+
+    args = parser.parse_args()
+
+    start_time = time.time()
+
+    if not args.quiet:
+        print("=" * 75)
+        print(" 🛡️  Visual Consistency & Evidence Engine — Dataset Builder")
+        print("=" * 75)
+
+    if args.demo_only:
+        if not args.quiet:
+            print("\n[1/1] Building Reference Catalogs, Brand Marks & Demo Cases...")
+        build_all_demo_datasets()
+    elif args.eval_only:
+        if not args.quiet:
+            print("\n[1/1] Building 18 Held-Out Evaluation Cases...")
+        build_held_out_evaluation_dataset()
+    else:
+        if not args.quiet:
+            print("\n[1/2] Generating Reference Catalogs, Verified Brands & 3 Demo Cases...")
+        build_all_demo_datasets()
+        if not args.quiet:
+            print("\n[2/2] Generating 18 Held-Out Evaluation Cases (Clean / Borderline / Suspicious)...")
+        build_held_out_evaluation_dataset()
+
+    elapsed = time.time() - start_time
+    if not args.quiet:
+        print("\n" + "=" * 75)
+        print(f" [✓] Dataset Generation Complete in {elapsed:.2f}s")
+        print(" • Demo Assets Directory:       dataset/merchants/ and backend/dataset/merchants/")
+        print(" • Reference Catalogs:          dataset/reference/ and backend/dataset/reference/")
+        print(" • Brand Marks:                 dataset/logos/ and backend/dataset/logos/")
+        print(" • Held-Out Evaluation Suite:   backend/dataset/eval_set/ (18 test cases)")
+        print("=" * 75)
 
 
 if __name__ == "__main__":
-    build_all_demo_datasets()
-    build_held_out_evaluation_dataset()
+    main()
+

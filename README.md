@@ -61,41 +61,101 @@ visual-consistency-engine/
 
 ---
 
-## 3. Quick Start
+## 3. Quick Start & Setup Guide
 
-### Prerequisites
+### System Requirements
+- **Python**: 3.10 or higher
+- **Node.js**: 18.x or higher (with npm)
+- **OS**: Windows, macOS, or Linux
+
+---
+
+### Step 1: Environment Setup & Dependencies
+
+#### 1.1 Create and Activate a Python Virtual Environment
+**On macOS / Linux:**
 ```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+**On Windows (PowerShell):**
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+**On Windows (Command Prompt):**
+```cmd
+python -m venv venv
+.\venv\Scripts\activate.bat
+```
+
+#### 1.2 Install Python Dependencies
+```bash
+pip install --upgrade pip
 pip install -r requirements.txt
-# Requirements include: fastapi, uvicorn, python-multipart, torch, transformers,
-# opencv-python-headless, Pillow, scikit-learn, beautifulsoup4, requests, timm
 ```
 
-### Step 1: Generate Datasets
-```bash
-# From project root — generates both demo cases AND held-out eval_set (18 cases)
-python generate_demo_dataset.py
-```
-
-### Step 2: Run the Backend
-```bash
-cd backend
-uvicorn main:app --reload --port 8000
-```
-API available at `http://localhost:8000` — Swagger docs at `http://localhost:8000/docs`
-
-### Step 3: Run the Frontend
+#### 1.3 Install Frontend Dependencies
 ```bash
 cd frontend
 npm install
+cd ..
+```
+
+---
+
+### Step 2: Generate Demo & Evaluation Datasets
+Generate the 3 interactive demo merchant cases along with the 18 held-out evaluation test cases:
+```bash
+python generate_demo_dataset.py
+```
+> **Output:** Populates `dataset/` (reference catalog, brand logos, demo cases) and `backend/dataset/eval_set/`.
+
+---
+
+### Step 3: Run the Full-Stack Application
+
+The application consists of a FastAPI backend and a React (Vite) frontend. Launch each in a separate terminal:
+
+#### Terminal 1 — Backend API (FastAPI)
+```bash
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+- **API Base URL:** `http://localhost:8000`
+- **Interactive Swagger Docs:** `http://localhost:8000/docs`
+- **Health Check Endpoint:** `http://localhost:8000/health`
+
+*(Optional Quick Health Check)*
+```bash
+curl http://localhost:8000/health
+```
+
+#### Terminal 2 — Frontend Application (React + Vite)
+```bash
+cd frontend
 npm run dev
 ```
-Frontend available at `http://localhost:5173`
+- **Web Application:** `http://localhost:5173`
 
-### Step 4 (Optional): Run Streamlit Fallback
+---
+
+### Step 4: Run the Test Suite (Optional)
+Run the automated end-to-end integration test to verify ViT inference, ELA forensics, and multimodal risk fusion:
 ```bash
-# From project root
+python test_pipeline.py
+```
+
+---
+
+### Step 5: Fallback Single-Page UI (Streamlit)
+If you prefer running the standalone Streamlit dashboard instead of the React frontend:
+```bash
 streamlit run app.py
 ```
+- **Streamlit App URL:** `http://localhost:8501`
 
 ---
 
@@ -167,15 +227,18 @@ $$\text{Visual Risk} = 0.30 \times \text{Reuse} + 0.20 \times \text{Logo} + 0.25
 
 > This section fulfills Razorpay Track 02's explicit requirement for "honest metrics including false-positive cost... measured precision and recall on a held-out test set."
 
-### Running the Evaluation
+### Running the Evaluation Benchmark
+
+Run the evaluation script from the project root:
 
 ```bash
-# Generate the held-out test set first (if not already generated)
+# 1. Ensure the held-out evaluation dataset is generated (if not already done)
 python generate_demo_dataset.py
 
-# Run evaluation — outputs to console AND saves backend/evaluation/results.json
+# 2. Execute the benchmark evaluation runner
 python backend/evaluation/evaluate_pipeline.py
 ```
+> **Output:** Prints classification metrics and confusion matrix to the terminal and persists structured metrics to `backend/evaluation/results.json`.
 
 The evaluation runner:
 1. Loads **18 held-out merchant cases** from `backend/dataset/eval_set/` (6 clean, 6 borderline, 6 suspicious) — **completely separate** from the 3 demo cases used in the live UI.

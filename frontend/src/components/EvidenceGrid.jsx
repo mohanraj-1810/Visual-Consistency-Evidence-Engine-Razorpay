@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers } from 'lucide-react';
+import { Layers, Info } from 'lucide-react';
 
 export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
   const reusePct = Math.round((reuse?.max_similarity ?? 0.0) * 100);
@@ -55,7 +55,7 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
               }}
             />
           </div>
-          <div className="signal-desc">Max cosine similarity vs catalog</div>
+          <div className="signal-desc">Max ViT similarity vs candidate</div>
         </div>
 
         {/* Signal 2: Logo Inconsistency */}
@@ -73,7 +73,7 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
               }}
             />
           </div>
-          <div className="signal-desc">Variance from official identity</div>
+          <div className="signal-desc">Variance from verified identity</div>
         </div>
 
         {/* Signal 3: Manipulation Indicators */}
@@ -91,12 +91,12 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
               }}
             />
           </div>
-          <div className="signal-desc">Compression & splicing anomalies</div>
+          <div className="signal-desc">Compression & gradient anomalies</div>
         </div>
 
         {/* Signal 4: Synthetic Suspicion */}
         <div className="signal-card">
-          <div className="signal-label">Synthetic-Image Suspicion</div>
+          <div className="signal-label">Synthetic Suspicion (Supporting)</div>
           <div className="signal-value" style={{ color: synthPct >= 60 ? '#f59e0b' : '#60a5fa' }}>
             {synthPct}%
           </div>
@@ -109,7 +109,7 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
               }}
             />
           </div>
-          <div className="signal-desc">Supporting frequency signal</div>
+          <div className="signal-desc">Supporting frequency signal only</div>
         </div>
 
         {/* Signal 5: Identity Consistency */}

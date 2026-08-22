@@ -1,45 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Header from './components/Header';
 import MerchantForm from './components/MerchantForm';
 import RiskCards from './components/RiskCards';
 import ClaimVsEvidence from './components/ClaimVsEvidence';
 import EvidenceGrid from './components/EvidenceGrid';
 import HeatmapViewer from './components/HeatmapViewer';
-import { analyzeMerchant } from './api/client';
+import { streamWebsiteAnalysis } from './api/client';
 import { AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [currentSteps, setCurrentSteps] = useState({});
 
-  const handleAnalyze = async (formData) => {
+  const handleAnalyze = (url) => {
     setLoading(true);
     setError(null);
-    try {
-      const data = await analyzeMerchant(formData);
-      setResult(data);
-    } catch (err) {
-      console.error('Error analyzing merchant:', err);
-      setError(err.message || 'Analysis failed. Make sure backend is running.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setCurrentSteps({});
 
-  // Initial load default demo case
-  useEffect(() => {
-    const initForm = new FormData();
-    initForm.append('mode', 'demo');
-    initForm.append('demo_case', 'Suspicious Merchant');
-    handleAnalyze(initForm);
-  }, []);
+    const closeStream = streamWebsiteAnalysis(
+      url,
+      (stepEvent) => {
+        setCurrentSteps((prev) => ({
+          ...prev,
+          [stepEvent.step]: stepEvent.status,
+        }));
+      },
+      (analysisData) => {
+        setCurrentSteps((prev) => ({ ...prev, all_done: true }));
+        setResult(analysisData);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Analysis error:', err);
+        setError(err.message || 'Analysis failed. Make sure backend is running.');
+        setLoading(false);
+      }
+    );
+
+    return closeStream;
+  };
 
   return (
     <div className="app-container">
       <Header />
 
-      <MerchantForm onAnalyze={handleAnalyze} loading={loading} />
+      <MerchantForm onAnalyze={handleAnalyze} loading={loading} currentSteps={currentSteps} />
 
       {error && (
         <div
@@ -57,20 +64,19 @@ export default function App() {
         >
           <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
           <div>
-            <strong>Analysis Request Failed:</strong> {error}
+            <strong>Analysis Notice:</strong> {error}
           </div>
         </div>
       )}
 
       {result && (
         <>
-          <RiskCards fusion={result.fusion} />
+          <RiskCards fusion={result.fusion} claims={result.claims} />
 
           <ClaimVsEvidence
+            claimsReasoning={result.claims_reasoning}
+            structuredEvidence={result.structured_evidence}
             claims={result.claims}
-            reuse={result.reuse}
-            logo={result.logo}
-            manipulation={result.manipulation}
           />
 
           <EvidenceGrid
@@ -94,9 +100,9 @@ export default function App() {
           fontSize: '0.8rem',
         }}
       >
-        <p>🛡️ Visual Consistency & Evidence Engine • Razorpay AI Risk Manager Track Submission</p>
+        <p>🛡️ Visual Risk Intelligence Engine • Razorpay AI Risk Manager</p>
         <p style={{ marginTop: '0.25rem' }}>
-          Decision Support Prototype for Human Risk Analysts — Never automatically rejects merchants.
+          Decision Support System for Human Risk Analysts — Never automatically rejects merchants.
         </p>
       </footer>
     </div>

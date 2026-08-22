@@ -76,16 +76,41 @@ def check_logo_consistency(
 
     logo_emb = get_image_embedding(merchant_logo)
 
-    # If claimed brand is provided, try exact / partial match in filename
-    target_items = verified_logos.items()
+    # ── Brand-Relevant Filtering ──────────────────────────────────────────────
+    # Only compare against logos whose filename partially matches the claimed brand.
+    # If no relevant reference exists, return NEUTRAL (LOW risk) — comparing against
+    # unrelated brands (e.g. Apple logo vs pottery brand logo) produces false positives.
+    brand_matched_items = []
     if claimed_brand:
-        brand_clean = claimed_brand.lower().replace(" ", "")
-        filtered = [item for item in target_items if brand_clean in item[0].lower().replace(" ", "")]
-        if filtered:
-            target_items = filtered
+        brand_clean = claimed_brand.lower().replace(" ", "").replace("-", "").replace("_", "")
+        brand_words = [w for w in claimed_brand.lower().split() if len(w) > 2]
+        for fname, (ref_emb, ref_fpath) in verified_logos.items():
+            fname_clean = fname.lower().replace(" ", "").replace("-", "").replace("_", "")
+            # Check if brand name is contained in filename or vice versa
+            if brand_clean in fname_clean or fname_clean.replace(".png", "").replace(".jpg", "") in brand_clean:
+                brand_matched_items.append((fname, ref_emb, ref_fpath))
+            elif any(bw in fname_clean for bw in brand_words if len(bw) > 3):
+                brand_matched_items.append((fname, ref_emb, ref_fpath))
 
+    # If no brand-relevant reference logos exist, return neutral LOW risk.
+    # Comparing against unrelated reference logos produces misleading scores.
+    if not brand_matched_items:
+        return {
+            "similarity": 0.85,
+            "consistency_score": 85.0,
+            "inconsistency_risk": 15.0,
+            "risk_level": "LOW",
+            "matched_reference": None,
+            "matched_path": None,
+            "explanation": (
+                "No registered brand reference logo available for the claimed identity. "
+                "Logo consistency cannot be evaluated without a verified reference. Neutral risk assigned."
+            ),
+        }
+
+    # Compare against brand-relevant references only
     comparisons = []
-    for fname, (ref_emb, ref_fpath) in target_items:
+    for fname, ref_emb, ref_fpath in brand_matched_items:
         sim = compute_cosine_similarity(logo_emb, ref_emb)
         comparisons.append({
             "name": fname,

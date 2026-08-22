@@ -231,20 +231,27 @@ def compute_identity_coherence(
             pairwise_similarities.append(float(sim))
 
     if not pairwise_similarities:
-        avg_sim = 0.70
+        avg_sim = 0.50
     else:
         avg_sim = float(np.mean(pairwise_similarities))
 
-    coherence_score = round(float(avg_sim * 100.0), 1)
-    coherence_score = max(0.0, min(100.0, coherence_score))
-
-    pct = int(round(coherence_score))
-    if coherence_score >= 80.0:
-        explanation = f"Merchant's product images show strong internal visual consistency (average pairwise similarity: {pct}%)."
-    elif coherence_score >= 55.0:
-        explanation = f"Merchant's product images show moderate internal visual consistency (average pairwise similarity: {pct}%)."
+    # Calibrated mapping: natural multi-product eCommerce catalogs have diverse items (avg_sim 0.25-0.60)
+    if avg_sim >= 0.50:
+        coherence_score = 75.0 + (avg_sim - 0.50) / 0.50 * 25.0
+    elif avg_sim >= 0.25:
+        coherence_score = 50.0 + (avg_sim - 0.25) / 0.25 * 25.0
     else:
-        explanation = f"Merchant's product images show low internal visual consistency, images may originate from different sources (average pairwise similarity: {pct}%)."
+        coherence_score = max(20.0, (avg_sim / 0.25) * 50.0)
+
+    coherence_score = round(float(max(0.0, min(100.0, coherence_score))), 1)
+
+    pct = int(round(avg_sim * 100))
+    if coherence_score >= 75.0:
+        explanation = f"Merchant's product images show strong visual coherence across catalog (pairwise similarity: {pct}%)."
+    elif coherence_score >= 50.0:
+        explanation = f"Merchant's product images show standard diverse catalog visual consistency (pairwise similarity: {pct}%)."
+    else:
+        explanation = f"Merchant's product images show low internal visual consistency, images may originate from disconnected sources (pairwise similarity: {pct}%)."
 
     return {
         "coherence_score": float(coherence_score),

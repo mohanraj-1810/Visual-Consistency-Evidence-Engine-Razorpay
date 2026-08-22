@@ -4,18 +4,13 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-export async function fetchDemoCases() {
-  const res = await fetch(`${API_BASE_URL}/demo-cases`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch demo cases: ${res.statusText}`);
-  }
-  return res.json();
-}
-
-export async function analyzeMerchant(formData) {
+export async function analyzeWebsiteUrl(url) {
   const res = await fetch(`${API_BASE_URL}/analyze`, {
     method: 'POST',
-    body: formData,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url }),
   });
 
   if (!res.ok) {
@@ -24,4 +19,43 @@ export async function analyzeMerchant(formData) {
   }
 
   return res.json();
+}
+
+/**
+ * Stream real-time analysis progress using Server-Sent Events (SSE).
+ */
+export function streamWebsiteAnalysis(url, onStep, onResult, onError) {
+  const encodedUrl = encodeURIComponent(url);
+  const eventSource = new EventSource(`${API_BASE_URL}/analyze-stream?url=${encodedUrl}`);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload.type === 'step') {
+        onStep(payload);
+      } else if (payload.type === 'result') {
+        onResult(payload.data);
+        eventSource.close();
+      } else if (payload.type === 'error') {
+        onError(new Error(payload.message || 'Analysis stream error'));
+        eventSource.close();
+      }
+    } catch (err) {
+      onError(err);
+      eventSource.close();
+    }
+  };
+
+  eventSource.onerror = (err) => {
+    // If stream fails, fallback to standard fetch POST
+    console.warn('SSE connection interrupted, falling back to POST /analyze', err);
+    eventSource.close();
+    analyzeWebsiteUrl(url)
+      .then(onResult)
+      .catch(onError);
+  };
+
+  return () => {
+    eventSource.close();
+  };
 }

@@ -139,3 +139,16 @@ def compute_cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
     sim = max(-1.0, min(1.0, float(sim)))
     # For normalized feature spaces, cosine similarity is in [0, 1] range after rectifying negative angles
     return float(max(0.0, sim))
+
+
+def get_model_status() -> Dict[str, Any]:
+    """Returns whether ViT or a fallback model is actively used."""
+    global _MODEL, _FALLBACK_MODEL
+    if _MODEL is not None:
+        return {"model_name": "Vision Transformer (ViT-B/16)", "is_fallback": False}
+    elif _FALLBACK_MODEL is not None:
+        return {"model_name": "MobileNetV3 / ResNet Backbone", "is_fallback": True}
+    else:
+        return {"model_name": "Adaptive Color/Texture Extractor", "is_fallback": True}
+
+

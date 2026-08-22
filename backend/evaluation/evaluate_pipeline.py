@@ -106,17 +106,20 @@ def load_all_eval_cases(dataset_dir: Path) -> List[Dict[str, Any]]:
     return cases
 
 
-def evaluate_pipeline():
+def evaluate_pipeline(dataset_dir: Path = None, output_json_path: Path = None, verbose: bool = True):
     """
     Executes the multimodal risk pipeline over the held-out evaluation dataset,
     computes honest classification metrics and false-positive cost analysis,
     and writes the results to backend/evaluation/results.json.
     """
+    if dataset_dir is None:
+        dataset_dir = DATASET_DIR
+
     print("=" * 80)
-    print("AI RISK MANAGER (TRACK 02) — HELD-OUT TEST SET EVALUATION")
+    print(" 🛡️  AI RISK MANAGER (TRACK 02) — HELD-OUT TEST SET EVALUATION")
     print("=" * 80)
-    print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
-    print(f"Dataset root: {DATASET_DIR / 'eval_set'}\n")
+    print(f" • Timestamp:    {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
+    print(f" • Dataset Root: {dataset_dir / 'eval_set'}\n")
 
     # 1. Warm model
     print("[1/4] Warming Vision Transformer model backbone...")
@@ -124,8 +127,8 @@ def evaluate_pipeline():
 
     # 2. Load held-out test cases
     print("[2/4] Loading held-out merchant cases from eval_set/...")
-    cases = load_all_eval_cases(DATASET_DIR)
-    print(f"  Loaded {len(cases)} held-out merchant cases across 3 risk tiers.\n")
+    cases = load_all_eval_cases(dataset_dir)
+    print(f"  [✓] Loaded {len(cases)} held-out merchant cases across 3 risk tiers.\n")
 
     # 3. Run pipeline on every merchant case
     print("[3/4] Running multimodal inference across all test cases...")
@@ -143,6 +146,8 @@ def evaluate_pipeline():
             claimed_brand=c["claimed_brand"],
             claims=c["claims"],
             crawler_data=c["crawler_data"],
+            prefer_online_discovery=False,
+            test_fixture_dir=str(dataset_dir / "reference"),
         )
         elapsed_ms = (time.time() - start_t) * 1000
 
@@ -166,8 +171,9 @@ def evaluate_pipeline():
             "latency_ms": round(elapsed_ms, 2),
         })
 
-        icon = "[MATCH]" if match else "[DIFF]"
-        print(f"  [{idx:02d}/{len(cases):02d}] {icon} {c['case_id']:32} | GT: {gt_status:6} -> PRED: {pred_status:6} (Score: {res['fusion']['final_risk_score']:4.1f})")
+        if verbose:
+            icon = "[✓ MATCH]" if match else "[~ DIFF ]"
+            print(f"  [{idx:02d}/{len(cases):02d}] {icon} {c['case_id']:32} | GT: {gt_status:6} -> PRED: {pred_status:6} (Score: {res['fusion']['final_risk_score']:4.1f}, {elapsed_ms:5.1f}ms)")
 
     # 4. Compute Metrics
     print("\n" + "=" * 80)
@@ -234,10 +240,15 @@ def evaluate_pipeline():
     print("=" * 65)
 
     # Save to results.json
-    output_path = BACKEND_DIR / "evaluation" / "results.json"
+    if output_json_path is None:
+        output_path = BACKEND_DIR / "evaluation" / "results.json"
+    else:
+        output_path = Path(output_json_path)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     results_payload = {
         "evaluation_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "dataset_path": str(DATASET_DIR / "eval_set"),
+        "dataset_path": str(dataset_dir / "eval_set"),
         "total_cases": total_cases,
         "overall_accuracy": round(accuracy, 4),
         "macro_f1": round(clf_report_dict["macro avg"]["f1-score"], 4),
@@ -271,9 +282,42 @@ def evaluate_pipeline():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results_payload, f, indent=2)
 
-    print(f"\nEvaluation results successfully saved to: {output_path}")
+    print(f"\n [✓] Evaluation results successfully saved to: {output_path}")
     return results_payload
 
 
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="🛡️ Visual Consistency & Evidence Engine — Held-Out Benchmark Evaluator",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--dataset-dir",
+        type=str,
+        default=None,
+        help="Path to dataset root containing eval_set/ (defaults to auto-detected path)",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=str,
+        default=None,
+        help="Output JSON path to save evaluation metrics (defaults to backend/evaluation/results.json)",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress per-case progress printing",
+    )
+
+    args = parser.parse_args()
+    ds_path = Path(args.dataset_dir) if args.dataset_dir else None
+    out_path = Path(args.output_json) if args.output_json else None
+
+    evaluate_pipeline(dataset_dir=ds_path, output_json_path=out_path, verbose=not args.quiet)
+
+
 if __name__ == "__main__":
-    evaluate_pipeline()
+    main()
+
