@@ -23,7 +23,7 @@ Fraudulent and high-risk merchants easily game these systems by writing convinci
 ```
 visual-consistency-engine/
 ├── backend/
-│   ├── main.py                     # FastAPI app (CORS, startup, routes)
+│   ├── main.py                     # FastAPI app (CORS, startup, routes, CLI runner)
 │   ├── routes/
 │   │   └── analyze.py              # POST /analyze, GET /demo-cases
 │   ├── visual/                     # ViT embeddings, reuse, logo, manipulation, heatmap
@@ -53,7 +53,7 @@ visual-consistency-engine/
 │           ├── EvidenceGrid.jsx    # 5 empirical signal gauges
 │           └── HeatmapViewer.jsx   # Deep-dive tabs: Reuse, Forensics, Audit, JSON
 │
-├── app.py                          # Streamlit fallback (imports from backend/)
+├── app.py                          # Deprecation notice (directs to FastAPI + React)
 ├── generate_demo_dataset.py        # Demo + held-out eval dataset generator
 ├── test_pipeline.py                # Core pipeline unit tests
 └── README.md
@@ -121,6 +121,10 @@ The application consists of a FastAPI backend and a React (Vite) frontend. Launc
 
 #### Terminal 1 — Backend API (FastAPI)
 ```bash
+python backend/main.py
+```
+*Alternatively, using uvicorn directly:*
+```bash
 cd backend
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -138,6 +142,7 @@ curl http://localhost:8000/health
 cd frontend
 npm run dev
 ```
+*(On Windows PowerShell if script execution is restricted: `cmd /c npm run dev`)*
 - **Web Application:** `http://localhost:5173`
 
 ---
@@ -150,14 +155,9 @@ python test_pipeline.py
 
 ---
 
-### Step 5: Fallback Single-Page UI (Streamlit)
-If you prefer running the standalone Streamlit dashboard instead of the React frontend:
-```bash
-streamlit run app.py
-```
-- **Streamlit App URL:** `http://localhost:8501`
+### Step 5: Migration & Deprecation Notice
+Streamlit has been decommissioned in favor of the production FastAPI backend + React frontend stack. Running `python app.py` displays the production migration notice.
 
----
 
 ## 4. Backend API Reference
 
@@ -294,3 +294,4 @@ The current model achieves **0% HIGH recall** — all 6 suspicious eval-set case
 ## 8. Operational Disclaimer
 
 This system is an **analyst decision-support prototype**. It produces empirical visual evidence signals, similarity metrics, and forensic heatmaps. It is designed to assist human risk reviewers in reaching fair, explainable decisions and **must never be used to automatically reject merchants**.
+"# Visual-Consistency-Evidence-Engine" 
