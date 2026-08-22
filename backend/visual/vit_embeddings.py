@@ -11,7 +11,7 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 
 # Global cache for model and processor
 _MODEL = None
@@ -93,11 +93,11 @@ def get_image_embedding(image: Union[Image.Image, str, np.ndarray]) -> np.ndarra
             inputs = processor(images=image, return_tensors="pt").to(_DEVICE)
             with torch.no_grad():
                 outputs = model(**inputs)
-                # Use [CLS] token embedding or pooled output
+                # BUG-008 FIX: Always use [CLS] token from last_hidden_state.
+                # pooler_output weights are randomly initialized (MISSING from checkpoint)
+                # and would produce garbage embeddings if used.
                 if hasattr(outputs, "last_hidden_state"):
                     embedding = outputs.last_hidden_state[:, 0, :].squeeze().cpu().numpy()
-                elif hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
-                    embedding = outputs.pooler_output.squeeze().cpu().numpy()
                 else:
                     embedding = outputs[0][:, 0, :].squeeze().cpu().numpy()
         else:
@@ -126,9 +126,19 @@ def compute_cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
     """
     Compute cosine similarity between two 1D normalized vectors.
     Returns float in range [0.0, 1.0].
+
+    BUG-003 FIX: Handles vectors of different dimensions gracefully.
+    This can occur when ViT (768-dim) and fallback histogram (512-dim)
+    embeddings are mixed (e.g. model fails mid-session). Truncates both
+    vectors to the shorter dimension before computing similarity.
     """
     v1 = vec1.flatten()
     v2 = vec2.flatten()
+    # Guard: if dimensions differ, truncate both to the shorter length
+    if v1.shape != v2.shape:
+        min_dim = min(len(v1), len(v2))
+        v1 = v1[:min_dim]
+        v2 = v2[:min_dim]
     dot = np.dot(v1, v2)
     norm1 = np.linalg.norm(v1)
     norm2 = np.linalg.norm(v2)

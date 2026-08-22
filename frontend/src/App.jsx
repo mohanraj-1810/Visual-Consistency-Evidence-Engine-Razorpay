@@ -4,6 +4,7 @@ import MerchantForm from './components/MerchantForm';
 import RiskCards from './components/RiskCards';
 import ClaimVsEvidence from './components/ClaimVsEvidence';
 import EvidenceGrid from './components/EvidenceGrid';
+import EvidenceFusionCards from './components/EvidenceFusionCards';
 import HeatmapViewer from './components/HeatmapViewer';
 import { streamWebsiteAnalysis } from './api/client';
 import { AlertCircle } from 'lucide-react';
@@ -78,6 +79,10 @@ export default function App() {
             structuredEvidence={result.structured_evidence}
             claims={result.claims}
           />
+
+          {result.evidence && result.evidence.length > 0 && (
+            <EvidenceFusionCards evidence={result.evidence} />
+          )}
 
           <EvidenceGrid
             reuse={result.reuse}

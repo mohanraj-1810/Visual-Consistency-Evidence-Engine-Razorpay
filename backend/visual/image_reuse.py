@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Union
+from typing import List, Dict, Tuple, Optional, Union, Any
 from PIL import Image
 import numpy as np
 
@@ -16,7 +16,10 @@ from visual.vit_embeddings import get_image_embedding, compute_cosine_similarity
 
 
 # Global cache for reference database embeddings
+# Stores: filename -> (embedding_vector, absolute_path)
 _REFERENCE_CACHE: Dict[str, Tuple[np.ndarray, str]] = {}
+# Tracks the set of filenames last loaded per directory for cache invalidation
+_REFERENCE_CACHE_MANIFEST: Dict[str, set] = {}
 
 
 def load_reference_dataset(reference_dir: Union[str, Path]) -> Dict[str, Tuple[np.ndarray, str]]:
@@ -24,26 +27,41 @@ def load_reference_dataset(reference_dir: Union[str, Path]) -> Dict[str, Tuple[n
     Load all images from the reference directory and compute their embeddings.
     Caches results in memory for fast comparisons.
 
+    BUG-007 FIX: Cache is now invalidated when the directory contents change.
+    New files added at runtime will be detected and loaded on the next call.
+
     Returns
     -------
     Dict mapping filename -> (embedding_vector, absolute_path)
     """
-    global _REFERENCE_CACHE
+    global _REFERENCE_CACHE, _REFERENCE_CACHE_MANIFEST
     ref_path = Path(reference_dir)
     if not ref_path.exists():
         return {}
 
     valid_extensions = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
     files = [f for f in ref_path.iterdir() if f.is_file() and f.suffix.lower() in valid_extensions]
+    current_filenames = {f.name for f in files}
+    dir_key = str(ref_path.resolve())
 
+    # Detect stale cache: evict entries removed from disk
+    cached_manifest = _REFERENCE_CACHE_MANIFEST.get(dir_key, set())
+    removed = cached_manifest - current_filenames
+    for fname in removed:
+        _REFERENCE_CACHE.pop(fname, None)
+
+    # Load new files not yet in cache
     for file_path in files:
         fname = file_path.name
         if fname not in _REFERENCE_CACHE:
             try:
                 emb = get_image_embedding(str(file_path))
                 _REFERENCE_CACHE[fname] = (emb, str(file_path))
-            except Exception as e:
+            except Exception:
                 continue
+
+    # Update manifest for this directory
+    _REFERENCE_CACHE_MANIFEST[dir_key] = current_filenames
 
     return _REFERENCE_CACHE
 

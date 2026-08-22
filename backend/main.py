@@ -19,6 +19,8 @@ if str(BACKEND_DIR) not in sys.path:
 
 from visual.vit_embeddings import load_vit_model
 from routes.analyze import router as analyze_router
+from api.routes import router as async_api_router
+from api.websockets import router as ws_router
 
 
 # Ensure utf-8 output on Windows
@@ -69,6 +71,8 @@ app.add_middleware(
 
 # Include Routers
 app.include_router(analyze_router, prefix="", tags=["Risk Analysis"])
+app.include_router(async_api_router, prefix="", tags=["Async Merchant Analysis"])
+app.include_router(ws_router, prefix="", tags=["WebSockets"])
 
 
 @app.get("/health")
@@ -91,11 +95,18 @@ if __name__ == "__main__":
     )
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host IP address to bind the API server")
     parser.add_argument("--port", type=int, default=8000, help="Port number for the API server")
-    parser.add_argument("--reload", action="store_true", default=True, help="Enable auto-reload on code changes")
-    parser.add_argument("--no-reload", dest="reload", action="store_false", help="Disable auto-reload")
+    # BUG-006 FIX: Default reload to False (production-safe). Use --reload explicitly for development.
+    parser.add_argument("--reload", action="store_true", default=False, help="Enable auto-reload on code changes (development only)")
+    parser.add_argument("--no-reload", dest="reload", action="store_false", help="Disable auto-reload (default)")
     parser.add_argument("--workers", type=int, default=1, help="Number of worker processes")
 
     args = parser.parse_args()
+
+    # BUG-006 FIX: uvicorn does not support reload=True with workers > 1.
+    # Disable reload automatically when multiple workers are requested.
+    if args.reload and args.workers > 1:
+        print("[WARN] --reload is incompatible with --workers > 1. Disabling reload for multi-worker mode.")
+        args.reload = False
 
     print("=" * 70)
     print(" 🛡️  Visual Consistency & Evidence Engine — API Server")

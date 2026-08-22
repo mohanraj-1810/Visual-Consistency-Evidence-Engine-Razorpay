@@ -67,6 +67,14 @@ def compute_ela(image: Image.Image, quality: int = 90, scale: int = 20) -> Tuple
         denom = max(2.5, mean_energy)
         disparity_score = (std_energy / denom) * 20.0 + (max_energy / denom) * 4.5
         
+        # Diamond Upgrade: Reduce false positives from global/uniform recompression (e.g. low-res resaves, screenshots)
+        # If standard deviation of energy is low relative to the mean, the compression error is uniform.
+        cov = std_energy / (mean_energy + 1e-6)
+        if cov < 0.2:
+            disparity_score *= 0.15  # Massive reduction for very uniform compression
+        elif cov < 0.4:
+            disparity_score *= 0.5   # Moderate reduction
+            
         # If overall mean energy is very low (typical for pristine web graphics), scale down
         if mean_energy < 1.5:
             disparity_score *= (mean_energy / 1.5)
@@ -174,6 +182,19 @@ def analyze_image_manipulation(image: Union[Image.Image, str, np.ndarray]) -> Di
         suspicious_regions: list of bounding boxes (x, y, w, h)
         explanation: str
     """
+    # BUG-002 FIX: Guard against None input — return safe LOW-risk default.
+    if image is None:
+        return {
+            "manipulation_score": 5.0,
+            "risk_level": "LOW",
+            "ela_image": np.zeros((100, 100, 3), dtype=np.uint8),
+            "gradient_map": np.zeros((100, 100), dtype=np.uint8),
+            "synthetic_score": 5.0,
+            "synthetic_desc": "Natural photographic frequency and chromatic signatures observed.",
+            "suspicious_regions": [],
+            "explanation": "No image provided for forensic analysis. Baseline default applied (Score: 5.0%).",
+        }
+
     if isinstance(image, str):
         pil_img = Image.open(image).convert("RGB")
         cv_img = cv2.imread(image)

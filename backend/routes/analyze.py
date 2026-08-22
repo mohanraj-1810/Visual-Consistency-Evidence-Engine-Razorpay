@@ -523,12 +523,17 @@ async def analyze_merchant_post(
     """
     url = None
     if request and request.url:
-        url = request.url
+        url = request.url.strip()
     elif target_url:
-        url = target_url
+        url = target_url.strip()
 
+    # BUG-001 FIX: Validate URL instead of silently falling back to example.com.
+    # An empty or missing URL must return a clear 422 validation error.
     if not url:
-        url = "https://example.com"
+        raise HTTPException(
+            status_code=422,
+            detail="A valid merchant URL is required. Please provide a 'url' field in the JSON body or 'target_url' form field.",
+        )
 
     try:
         res = execute_website_analysis(url)
