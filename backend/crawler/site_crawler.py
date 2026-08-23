@@ -318,12 +318,10 @@ def _extract_rich_images(soup: BeautifulSoup, base_url: str) -> Tuple[List[Dict[
         # Determine asset classification
         if is_cert:
             asset_type = "certificate"
-            certs.append(full_url)
         elif is_logo:
             asset_type = "logo"
         elif is_banner:
             asset_type = "banner"
-            banners.append(full_url)
         else:
             asset_type = "product_image"
 
