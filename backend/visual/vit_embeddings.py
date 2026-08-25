@@ -70,6 +70,8 @@ def get_image_embedding(image: Union[Image.Image, str, np.ndarray]) -> np.ndarra
     -------
     np.ndarray : L2-normalized 1D feature embedding vector
     """
+    if isinstance(image, tuple):
+        image = image[0]
     if isinstance(image, str):
         image = Image.open(image).convert("RGB")
     elif isinstance(image, np.ndarray):

@@ -14,8 +14,28 @@ def calculate_text_business_risk(crawler_data: Optional[Dict[str, Any]] = None) 
     """
     Calculate Merchant Text / Business Risk (0-100).
     Evaluates presence of contact details, policies, about info, pricing.
+    If the crawl failed or website was unreachable, returns an UNVERIFIABLE state.
     """
+    if crawler_data is not None and (crawler_data.get("crawl_successful") is False or crawler_data.get("error")):
+        crawl_err = crawler_data.get("error") or "Merchant website could not be reached"
+        crawl_status = crawler_data.get("crawl_status", "CRAWL_FAILED")
+        return {
+            "text_risk_score": None,
+            "signals": {
+                "has_contact": False,
+                "has_policy": False,
+                "has_pricing": False,
+                "has_about": False,
+                "has_social": False,
+            },
+            "crawl_status": crawl_status,
+            "crawl_successful": False,
+            "is_unverifiable": True,
+            "summary": f"Unreachable Website: {crawl_err}",
+        }
+
     if not crawler_data:
+        # Default baseline for evaluation test cases or offline test fixtures
         return {
             "text_risk_score": 18.0,
             "signals": {
@@ -25,6 +45,9 @@ def calculate_text_business_risk(crawler_data: Optional[Dict[str, Any]] = None) 
                 "has_about": True,
                 "has_social": True,
             },
+            "crawl_status": "OFFLINE_EVAL_FIXTURE",
+            "crawl_successful": True,
+            "is_unverifiable": False,
             "summary": "Standard business profile with policy disclosures and contact channels present.",
         }
 
@@ -58,6 +81,9 @@ def calculate_text_business_risk(crawler_data: Optional[Dict[str, Any]] = None) 
             "has_about": has_about,
             "has_social": len(social_links) > 0,
         },
+        "crawl_status": "SUCCESS",
+        "crawl_successful": True,
+        "is_unverifiable": False,
         "summary": (
             "Merchant profile displays standard textual compliance and disclosures."
             if score < 40
@@ -73,6 +99,7 @@ def fuse_risk_scores(
     logo_data: Dict[str, Any],
     manipulation_data: Dict[str, Any],
     merchant_name: str = "Merchant",
+    crawler_data: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Fuse Text/Business Risk and Visual Evidence Risk into Final Risk Score.
@@ -80,11 +107,93 @@ def fuse_risk_scores(
     Fusion Principle:
     «"Don't just ask what a merchant says. Verify what their visuals prove."»
     
-    Formula:
-    1. Base Multimodal Combination: 0.25 * Text_Risk + 0.75 * Visual_Risk
-    2. When Visual Risk >= 70 (multiple severe visual contradictions), visual evidence
-       dominates over surface-level textual claims.
+    If the website was unreachable or the crawl failed, automated visual scoring
+    is suspended and the engine returns UNVERIFIABLE rather than a false LOW score.
     """
+    # 1. Check for UNVERIFIABLE crawl failure state
+    is_crawl_failed = False
+    crawl_err_msg = None
+
+    if crawler_data and (crawler_data.get("crawl_successful") is False or crawler_data.get("error")):
+        is_crawl_failed = True
+        crawl_err_msg = crawler_data.get("error")
+    elif text_risk_data.get("is_unverifiable") or text_risk_data.get("text_risk_score") is None:
+        is_crawl_failed = True
+        crawl_err_msg = text_risk_data.get("summary")
+
+    if is_crawl_failed:
+        crawl_status = (
+            crawler_data.get("crawl_status")
+            if crawler_data
+            else text_risk_data.get("crawl_status", "CRAWL_FAILED")
+        )
+
+        # Distinguish between policy compliance (ROBOTS_DISALLOWED), WAF/anti-bot protection (BOT_BLOCKED), vs actual unreachable network failures
+        if crawl_status == "ROBOTS_DISALLOWED":
+            return {
+                "final_risk_score": None,
+                "text_risk_score": None,
+                "visual_risk_score": None,
+                "status": "COMPLIANCE_LIMITED",
+                "status_label": "COMPLIANCE-LIMITED — ACCESS RESTRICTED PER POLICY",
+                "recommendation": "Merchant site is active, but robots.txt restricts automated bot indexing. Evaluate merchant via manual analyst review or merchant-authorized integration.",
+                "badge_color": "#2563eb",  # Neutral Blue badge (NOT Red/Gray/Green)
+                "reasons": [
+                    f"Robots.txt Policy: Automated crawling restricted by merchant domain ({crawler_data.get('domain') if crawler_data else 'target site'}).",
+                    "The merchant website is active and reachable, but enforces automated bot access restrictions per standard web standards.",
+                    "Automated visual evaluation suspended per web compliance policy — no negative risk inference.",
+                ],
+                "merchant_name": merchant_name,
+                "is_unverifiable": True,
+                "is_compliance_limited": True,
+                "is_bot_blocked": False,
+                "crawl_status": crawl_status,
+                "crawl_error": crawl_err_msg or "Robots.txt policy restricts automated crawler access.",
+            }
+
+        if crawl_status == "BOT_BLOCKED":
+            return {
+                "final_risk_score": None,
+                "text_risk_score": None,
+                "visual_risk_score": None,
+                "status": "BOT_BLOCKED",
+                "status_label": "COULD NOT VERIFY — ANTI-BOT PROTECTION (HTTP 403)",
+                "recommendation": "Target site's anti-bot system (Cloudflare/PerimeterX/WAF) blocked automated scraper access. Review merchant manually or through direct merchant integration.",
+                "badge_color": "#6366f1",  # Neutral Indigo badge (NOT Red/Gray/Green)
+                "reasons": [
+                    f"Anti-Bot Protection: Target platform ({crawler_data.get('domain') if crawler_data else 'merchant site'}) returned HTTP 403 / 429.",
+                    "This does not indicate risk — many major legitimate platforms (Etsy, Amazon, etc.) deploy active WAF bot-protection.",
+                    "Automated crawler blocked by design — no negative risk inference.",
+                ],
+                "merchant_name": merchant_name,
+                "is_unverifiable": True,
+                "is_compliance_limited": False,
+                "is_bot_blocked": True,
+                "crawl_status": crawl_status,
+                "crawl_error": crawl_err_msg or "Anti-bot protection blocked automated access (HTTP 403).",
+            }
+
+        return {
+            "final_risk_score": None,
+            "text_risk_score": None,
+            "visual_risk_score": None,
+            "status": "UNVERIFIABLE",
+            "status_label": "UNVERIFIABLE — INSUFFICIENT EVIDENCE",
+            "recommendation": "Merchant site was unreachable or returned errors (DNS/Network/HTTP). Automated visual verification cannot be performed. Manual risk investigation required.",
+            "badge_color": "#64748b",  # Distinct slate/gray color (never green)
+            "reasons": [
+                f"Website Unreachable: {crawl_err_msg or 'Website crawl failed or domain could not be resolved'}.",
+                "Zero visual assets could be extracted due to network/connectivity failure.",
+                "Automated risk scoring suspended — requires manual website verification by Risk Operations.",
+            ],
+            "merchant_name": merchant_name,
+            "is_unverifiable": True,
+            "is_compliance_limited": False,
+            "is_bot_blocked": False,
+            "crawl_status": crawl_status,
+            "crawl_error": crawl_err_msg,
+        }
+
     text_score = float(text_risk_data.get("text_risk_score", 18.0))
     visual_score = float(visual_risk_data.get("visual_risk_score", 20.0))
 
@@ -173,4 +282,5 @@ def fuse_risk_scores(
         "badge_color": badge_color,
         "reasons": reasons,
         "merchant_name": merchant_name,
+        "is_unverifiable": False,
     }

@@ -72,7 +72,12 @@ export default function App() {
 
       {result && (
         <>
-          <RiskCards fusion={result.fusion} claims={result.claims} />
+          <RiskCards
+            fusion={result.fusion}
+            claims={result.claims}
+            webDetectionMode={result.web_detection_mode}
+            webDetectionSimulated={result.web_detection_simulated}
+          />
 
           <ClaimVsEvidence
             claimsReasoning={result.claims_reasoning}

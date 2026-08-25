@@ -274,13 +274,151 @@ def generate_structured_evidence(
 def synthesize_claims_reasoning(
     claims: Dict[str, str],
     evidence_objects: List[Dict[str, Any]],
-    final_risk_score: float,
+    final_risk_score: Optional[float],
     status: str,
 ) -> Dict[str, Any]:
     """
     Synthesizes Claim vs Visual Evidence matrix, dynamic conclusion,
     and workflow recommendation.
     """
+    # Handle COMPLIANCE_LIMITED state (robots.txt compliance)
+    if status == "COMPLIANCE_LIMITED":
+        claim_items = [
+            {
+                "dimension": "1. Inventory & Products",
+                "claim": claims.get("inventory_claim", "Active storefront — automated crawl restricted"),
+                "evidence_summary": "Automated visual inventory extraction was suspended in compliance with the merchant site's robots.txt policy.",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "LOW",
+                "score_label": "ViT Similarity: N/A (Compliance Restricted)",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "robots.txt-restricted",
+            },
+            {
+                "dimension": "2. Brand Identity & Logo",
+                "claim": claims.get("brand_claim", "Brand identity claim"),
+                "evidence_summary": "Brand assets could not be scraped due to robots.txt restrictions. No negative inference.",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "LOW",
+                "score_label": "Logo Consistency: N/A (Compliance Restricted)",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "robots.txt-restricted",
+            },
+            {
+                "dimension": "3. Document Integrity & Compliance",
+                "claim": claims.get("compliance_claim", "Robots.txt compliant site"),
+                "evidence_summary": "Merchant domain actively enforces robots.txt standards. Evaluated as a compliant, well-configured domain.",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "LOW",
+                "score_label": "Forensics: N/A",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "robots.txt-restricted",
+            },
+        ]
+        return {
+            "claim_items": claim_items,
+            "conclusion": "Merchant website is live and well-configured, but enforces robots.txt automated access restrictions.",
+            "recommendation": "COMPLIANCE-LIMITED → MANUAL REVIEW: Review merchant via manual analyst review or merchant-authorized data sharing.",
+            "contradiction_count": 0,
+            "verification_count": 3,
+            "support_count": 0,
+        }
+
+    # Handle BOT_BLOCKED state (HTTP 403 / anti-bot protection)
+    if status == "BOT_BLOCKED":
+        claim_items = [
+            {
+                "dimension": "1. Inventory & Products",
+                "claim": claims.get("inventory_claim", "Active storefront — anti-bot protected"),
+                "evidence_summary": "Automated inventory extraction was blocked by target platform's anti-bot/WAF protection (HTTP 403).",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "LOW",
+                "score_label": "ViT Similarity: N/A (WAF Protected)",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "anti-bot-protected",
+            },
+            {
+                "dimension": "2. Brand Identity & Logo",
+                "claim": claims.get("brand_claim", "Brand identity claim"),
+                "evidence_summary": "Brand assets could not be scraped due to target site's bot protection. No negative inference.",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "LOW",
+                "score_label": "Logo Consistency: N/A (WAF Protected)",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "anti-bot-protected",
+            },
+            {
+                "dimension": "3. Document Integrity & Compliance",
+                "claim": claims.get("compliance_claim", "Anti-bot protected platform"),
+                "evidence_summary": "Target domain deploys active enterprise bot mitigation (Cloudflare / PerimeterX / WAF). Evaluated as a protected legitimate platform.",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "LOW",
+                "score_label": "Forensics: N/A",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "anti-bot-protected",
+            },
+        ]
+        return {
+            "claim_items": claim_items,
+            "conclusion": "Target website anti-bot protection blocked automated access (HTTP 403). This does not indicate risk.",
+            "recommendation": "COULD NOT VERIFY → MANUAL REVIEW: Review merchant via manual analyst verification or direct platform integration.",
+            "contradiction_count": 0,
+            "verification_count": 3,
+            "support_count": 0,
+        }
+
+    # Handle UNVERIFIABLE state (dead URL / crawl failure)
+    if status == "UNVERIFIABLE":
+        claim_items = [
+            {
+                "dimension": "1. Inventory & Products",
+                "claim": claims.get("inventory_claim", "Unreachable website — no content extracted"),
+                "evidence_summary": "Cannot verify inventory or product imagery — website was unreachable or failed DNS/network resolution.",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "MEDIUM",
+                "score_label": "ViT Similarity: N/A",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "unreachable-host",
+            },
+            {
+                "dimension": "2. Brand Identity & Logo",
+                "claim": claims.get("brand_claim", "Unverified brand identity"),
+                "evidence_summary": "Cannot verify brand assets — no logo or visual brand artifacts could be retrieved.",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "MEDIUM",
+                "score_label": "Logo Consistency: N/A",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "unreachable-host",
+            },
+            {
+                "dimension": "3. Document Integrity & Compliance",
+                "claim": claims.get("compliance_claim", "Compliance disclosures unverifiable"),
+                "evidence_summary": "Statutory disclosures, terms, and contact channels could not be extracted due to connectivity failure.",
+                "relationship": "REQUIRES_VERIFICATION",
+                "severity": "MEDIUM",
+                "score_label": "Forensics: N/A",
+                "source_type": "ONLINE",
+                "source_url": None,
+                "source_domain": "unreachable-host",
+            },
+        ]
+        return {
+            "claim_items": claim_items,
+            "conclusion": "Merchant website could not be reached or verified. Automated evidence collection was suspended.",
+            "recommendation": "UNVERIFIABLE → MANUAL REVIEW: Confirm merchant domain resolution and request manual URL & business verification.",
+            "contradiction_count": 0,
+            "verification_count": 3,
+            "support_count": 0,
+        }
+
     # Count contradictions and verifications
     contradictions = [e for e in evidence_objects if e["relationship"] == "CONTRADICTS"]
     verifications = [e for e in evidence_objects if e["relationship"] == "REQUIRES_VERIFICATION"]

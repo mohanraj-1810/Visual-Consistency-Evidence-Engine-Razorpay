@@ -39,6 +39,7 @@ from scoring.visual_score import calculate_visual_risk_score, WEIGHTS
 from scoring.fusion import calculate_text_business_risk, fuse_risk_scores
 from crawler.site_crawler import crawl_merchant
 from crawler.image_extractor import process_and_prioritize_images, download_image
+from services.web_image_search import get_vision_client
 
 # Online Evidence Discovery & ViT Verification
 from online_evidence.candidate_search import discover_candidate_evidence
@@ -338,6 +339,7 @@ def run_pipeline(
         logo_data=logo_data,
         manipulation_data=manip_data,
         merchant_name=merchant_name,
+        crawler_data=crawler_data,
     )
 
     # 9. Structured Evidence Objects & Claim ↔ Evidence Reasoning
@@ -430,6 +432,8 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     verifies via ViT, and fuses risk signals.
     Guarantees clean, 100% JSON-serializable output.
     """
+    # Determine Vision API mode upfront so it surfaces in the response
+    _, web_detection_mode = get_vision_client()
     if progress_callback:
         progress_callback("crawl_started", "Crawling merchant website...")
 
@@ -462,7 +466,9 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
 
     # If crawler found direct logo_url but wasn't in representatives, try downloading
     if logo_image is None and crawl_res.get("logo_url"):
-        logo_image = download_image(crawl_res["logo_url"])
+        logo_res = download_image(crawl_res["logo_url"])
+        if logo_res is not None:
+            logo_image = logo_res[0]
 
     # If no images extracted from site (e.g. text-only or heavily blocked), create placeholder
     if not product_images:
@@ -472,10 +478,53 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     if progress_callback:
         progress_callback("searching_evidence", "Searching public online sources for visual candidate evidence...")
 
+    domain_name = crawl_res.get("domain", url)
+    crawl_ok = crawl_res.get("crawl_successful", False)
+    crawl_status = crawl_res.get("crawl_status", "SUCCESS")
+    page_class = crawl_res.get("page_classification", {})
+    site_cat = page_class.get("site_category", "GENERAL_WEBSITE")
+
+    # Dynamic, evidence-derived claim generation
+    if not crawl_ok:
+        if crawl_status == "ROBOTS_DISALLOWED":
+            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (robots.txt restricts automated access)"
+            brand_claim = f"Brand identity claimed as {merchant_name} (automated extraction restricted by robots.txt)"
+            compliance_claim = f"Compliance policy: Merchant enforces robots.txt crawler access restrictions"
+        elif crawl_status == "BOT_BLOCKED":
+            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (site blocked automated access)"
+            brand_claim = f"Brand identity claimed as {merchant_name} (automated access blocked by anti-bot WAF)"
+            compliance_claim = f"Protection policy: Target site deploys active anti-bot protection (HTTP 403)"
+        else:
+            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (unreachable domain or connection error)"
+            brand_claim = f"Brand identity claimed as {merchant_name} (unverified — site unreachable)"
+            compliance_claim = f"Compliance unverifiable: {crawl_res.get('error', 'Crawl failed')}"
+    elif site_cat == "ECOMMERCE":
+        num_p = len(crawl_res.get("products", []))
+        p_str = f" ({num_p} product listings discovered)" if num_p > 0 else ""
+        inventory_claim = f"E-commerce product catalog from {domain_name}{p_str}"
+        brand_claim = f"Brand identity claimed as {merchant_name}"
+        compliance_claim = f"Website disclosures: Contact {'Present' if crawl_res.get('has_contact') else 'Missing'}, Policy {'Present' if crawl_res.get('has_policy') else 'Missing'}, About {'Present' if crawl_res.get('has_about') else 'Missing'}"
+    elif site_cat == "FINTECH_PAYMENTS":
+        inventory_claim = f"Financial technology & payment services platform from {domain_name} — non-retail storefront"
+        brand_claim = f"Corporate brand identity claimed as {merchant_name}"
+        compliance_claim = f"Platform disclosures: Contact {'Present' if crawl_res.get('has_contact') else 'Missing'}, Policy {'Present' if crawl_res.get('has_policy') else 'Missing'}, About {'Present' if crawl_res.get('has_about') else 'Missing'}"
+    elif site_cat == "SAAS_SOFTWARE":
+        inventory_claim = f"Software / SaaS platform from {domain_name} — could not confirm e-commerce retail catalog structure"
+        brand_claim = f"Brand identity claimed as {merchant_name}"
+        compliance_claim = f"Platform disclosures: Contact {'Present' if crawl_res.get('has_contact') else 'Missing'}, Policy {'Present' if crawl_res.get('has_policy') else 'Missing'}, About {'Present' if crawl_res.get('has_about') else 'Missing'}"
+    elif site_cat == "INFORMATIONAL_INSTITUTION":
+        inventory_claim = f"Educational / institutional portal from {domain_name} — could not confirm e-commerce catalog structure"
+        brand_claim = f"Institutional identity claimed as {merchant_name}"
+        compliance_claim = f"Disclosures: Contact {'Present' if crawl_res.get('has_contact') else 'Missing'}, Policy {'Present' if crawl_res.get('has_policy') else 'Missing'}, About {'Present' if crawl_res.get('has_about') else 'Missing'}"
+    else:
+        inventory_claim = f"Website content from {domain_name} — could not confirm e-commerce catalog structure"
+        brand_claim = f"Brand identity claimed as {merchant_name}"
+        compliance_claim = f"Website disclosures: Contact {'Present' if crawl_res.get('has_contact') else 'Missing'}, Policy {'Present' if crawl_res.get('has_policy') else 'Missing'}, About {'Present' if crawl_res.get('has_about') else 'Missing'}"
+
     claims = {
-        "inventory_claim": f"E-commerce product catalog from {crawl_res.get('domain', url)}",
-        "brand_claim": f"Brand identity claimed as {merchant_name}",
-        "compliance_claim": "Website self-reported disclosures and business credentials.",
+        "inventory_claim": inventory_claim,
+        "brand_claim": brand_claim,
+        "compliance_claim": compliance_claim,
     }
 
     if progress_callback:
@@ -488,7 +537,7 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         document_image=None,
         claimed_brand=merchant_name,
         claims=claims,
-        crawler_data=crawl_res if not crawl_res.get("error") else None,
+        crawler_data=crawl_res,
         prefer_online_discovery=True,
         search_hints=search_hints,
         test_fixture_dir=None,  # No local dataset in production!
@@ -506,6 +555,10 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         "selected_representative_count": len(product_images),
     }
     result["extracted_products"] = crawl_res.get("products", [])
+
+    # Surface Vision API mode at top level so the UI can show a SIMULATED badge
+    result["web_detection_mode"] = web_detection_mode
+    result["web_detection_simulated"] = (web_detection_mode == "SIMULATED_DEMO_MODE")
 
     return sanitize_for_json(result)
 
