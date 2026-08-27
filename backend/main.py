@@ -21,6 +21,7 @@ from visual.vit_embeddings import load_vit_model
 from routes.analyze import router as analyze_router
 from api.routes import router as async_api_router
 from api.websockets import router as ws_router
+from services.web_image_search import get_vision_status
 
 
 # Ensure utf-8 output on Windows
@@ -40,6 +41,11 @@ async def lifespan(app: FastAPI):
         print("[SUCCESS] Vision Transformer model pre-warmed successfully.")
     except Exception as e:
         print(f"[WARN] Model pre-warm notice: {e}")
+    
+    # Log Google Cloud Vision status
+    v_stat = get_vision_status()
+    print(f"[VISION] Google Cloud Vision Mode: {v_stat['analysis_mode']} (Key Configured: {v_stat['api_key_configured']})")
+    
     yield
     print("[INFO] Shutting down Visual Consistency Engine.")
 
@@ -82,6 +88,16 @@ async def health_check():
         "status": "healthy",
         "service": "Visual Consistency & Evidence Engine",
         "version": "1.0.0",
+        "vision_intelligence": get_vision_status(),
+    }
+
+
+@app.get("/vision/status")
+async def vision_status():
+    """Google Cloud Vision API configuration, credential, and cache status."""
+    return {
+        "status": "ok",
+        "vision_intelligence": get_vision_status(),
     }
 
 

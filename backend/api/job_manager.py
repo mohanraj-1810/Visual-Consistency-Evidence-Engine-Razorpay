@@ -183,10 +183,22 @@ class JobManager:
                 # ── Step 4: ANALYSING_FORENSICS & LOGO ──
                 await JobManager._emit_event(job_id, "ANALYSING_FORENSICS", "Analysing logo consistency and digital tampering...")
                 
+                # Extract any detected brand logos from Vision annotations
+                detected_logos_list = []
+                for b in batch_results:
+                    w_res = b.get("web_detection", {})
+                    if isinstance(w_res, dict) and w_res.get("logos"):
+                        detected_logos_list.extend(w_res.get("logos", []))
+
                 # Check logo
                 logo_img = proc_data.get("logo_image")
                 logo_url = crawl_data.get("logo_url")
-                brand_status, logo_evidence = verify_merchant_logo(logo_img, logo_url, claimed_brand)
+                brand_status, logo_evidence = verify_merchant_logo(
+                    logo_img,
+                    logo_url,
+                    claimed_brand,
+                    detected_logos=detected_logos_list if detected_logos_list else None,
+                )
                 if logo_evidence:
                     # Append default provenance fields to logo evidence
                     logo_evidence.setdefault("google_web_match_score", 0)
