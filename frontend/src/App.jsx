@@ -6,6 +6,7 @@ import ClaimVsEvidence from './components/ClaimVsEvidence';
 import EvidenceGrid from './components/EvidenceGrid';
 import EvidenceFusionCards from './components/EvidenceFusionCards';
 import HeatmapViewer from './components/HeatmapViewer';
+import ErrorBoundary from './components/ErrorBoundary';
 import { streamWebsiteAnalysis } from './api/client';
 import { AlertCircle } from 'lucide-react';
 
@@ -18,6 +19,7 @@ export default function App() {
   const handleAnalyze = (url) => {
     setLoading(true);
     setError(null);
+    setResult(null);
     setCurrentSteps({});
 
     const closeStream = streamWebsiteAnalysis(
@@ -25,7 +27,7 @@ export default function App() {
       (stepEvent) => {
         setCurrentSteps((prev) => ({
           ...prev,
-          [stepEvent.step]: stepEvent.status,
+          [stepEvent.step]: stepEvent.status || 'completed',
         }));
       },
       (analysisData) => {
@@ -42,6 +44,8 @@ export default function App() {
 
     return closeStream;
   };
+
+  const fusionEvidence = result?.evidence || result?.structured_evidence || result?.candidate_evidence || [];
 
   return (
     <div className="app-container">
@@ -71,7 +75,7 @@ export default function App() {
       )}
 
       {result && (
-        <>
+        <ErrorBoundary onReset={() => { setResult(null); setError(null); }}>
           <RiskCards
             fusion={result.fusion}
             claims={result.claims}
@@ -85,8 +89,8 @@ export default function App() {
             claims={result.claims}
           />
 
-          {result.evidence && result.evidence.length > 0 && (
-            <EvidenceFusionCards evidence={result.evidence} />
+          {fusionEvidence.length > 0 && (
+            <EvidenceFusionCards evidence={fusionEvidence} />
           )}
 
           <EvidenceGrid
@@ -97,7 +101,7 @@ export default function App() {
           />
 
           <HeatmapViewer result={result} />
-        </>
+        </ErrorBoundary>
       )}
 
       <footer

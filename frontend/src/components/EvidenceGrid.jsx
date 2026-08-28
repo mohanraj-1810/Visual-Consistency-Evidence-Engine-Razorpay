@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Info } from 'lucide-react';
+import { Layers, Activity, ShieldCheck, Image as ImageIcon, Eye, Sparkles } from 'lucide-react';
 
 export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
   const reusePct = Math.round((reuse?.max_similarity ?? 0.0) * 100);
@@ -9,7 +9,7 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
   const coherencePct = Math.round(identity?.coherence_score ?? 70.0);
 
   const getProgressColor = (val, thresholds = [40, 70]) => {
-    if (val >= thresholds[1]) return '#ef4444';
+    if (val >= thresholds[1]) return '#f43f5e';
     if (val >= thresholds[0]) return '#f59e0b';
     return '#10b981';
   };
@@ -17,117 +17,117 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
   const getCoherenceColor = (val) => {
     if (val >= 80) return '#10b981';
     if (val >= 55) return '#f59e0b';
-    return '#ef4444';
+    return '#f43f5e';
   };
 
   const coherenceTierLabel =
     coherencePct >= 80
-      ? 'Strong internal consistency'
+      ? 'Strong internal visual consistency'
       : coherencePct >= 55
-      ? 'Moderate internal consistency'
+      ? 'Moderate internal visual consistency'
       : 'Low coherence (disparate origins)';
 
   return (
     <div style={{ marginBottom: '2.5rem' }}>
-      <div style={{ marginBottom: '1rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Layers size={20} color="#6366f1" />
-          Empirical Signal Breakdown
-        </h3>
-        <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-          Real-time algorithmic measurements extracted from Vision Transformer embeddings and computer vision filters.
-        </p>
+      <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div>
+          <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <Layers size={22} color="#3b82f6" />
+            Empirical Visual Signal Breakdown
+          </h3>
+          <p style={{ fontSize: '0.86rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+            Real-time algorithmic measurements extracted from Vision Transformer embeddings and computer vision filters.
+          </p>
+        </div>
+        <span className="status-pill purple">
+          <Activity size={13} />
+          <span>FORENSIC METRICS</span>
+        </span>
       </div>
 
-      <div className="signals-grid">
+      <div className="grid-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
         {/* Signal 1: Image Reuse */}
-        <div className="signal-card">
-          <div className="signal-label">Image Reuse</div>
-          <div className="signal-value" style={{ color: getProgressColor(reusePct, [70, 85]) }}>
+        <div className="card" style={{ padding: '1.25rem' }}>
+          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
+            Image Reuse Index
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(reusePct, [70, 85]), fontFamily: 'JetBrains Mono' }}>
             {reusePct}%
           </div>
-          <div className="progress-bar-bg">
+          <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
             <div
-              className="progress-bar-fill"
               style={{
                 width: `${Math.min(100, reusePct)}%`,
+                height: '100%',
                 backgroundColor: getProgressColor(reusePct, [70, 85]),
+                transition: 'width 0.4s ease',
               }}
             />
           </div>
-          <div className="signal-desc">Max ViT similarity vs candidate</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Max ViT similarity vs candidate</div>
         </div>
 
         {/* Signal 2: Logo Inconsistency */}
-        <div className="signal-card">
-          <div className="signal-label">Logo Inconsistency</div>
-          <div className="signal-value" style={{ color: getProgressColor(logoInconPct, [30, 60]) }}>
+        <div className="card" style={{ padding: '1.25rem' }}>
+          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
+            Logo Inconsistency
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(logoInconPct, [30, 60]), fontFamily: 'JetBrains Mono' }}>
             {logoInconPct}%
           </div>
-          <div className="progress-bar-bg">
+          <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
             <div
-              className="progress-bar-fill"
               style={{
                 width: `${Math.min(100, logoInconPct)}%`,
+                height: '100%',
                 backgroundColor: getProgressColor(logoInconPct, [30, 60]),
+                transition: 'width 0.4s ease',
               }}
             />
           </div>
-          <div className="signal-desc">Variance from verified identity</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Variance from verified identity</div>
         </div>
 
         {/* Signal 3: Manipulation Indicators */}
-        <div className="signal-card">
-          <div className="signal-label">Manipulation Indicators</div>
-          <div className="signal-value" style={{ color: getProgressColor(manipPct, [35, 65]) }}>
+        <div className="card" style={{ padding: '1.25rem' }}>
+          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
+            Manipulation ELA
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(manipPct, [35, 65]), fontFamily: 'JetBrains Mono' }}>
             {manipPct}%
           </div>
-          <div className="progress-bar-bg">
+          <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
             <div
-              className="progress-bar-fill"
               style={{
                 width: `${Math.min(100, manipPct)}%`,
+                height: '100%',
                 backgroundColor: getProgressColor(manipPct, [35, 65]),
+                transition: 'width 0.4s ease',
               }}
             />
           </div>
-          <div className="signal-desc">Compression & gradient anomalies</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Compression & gradient anomalies</div>
         </div>
 
-        {/* Signal 4: Synthetic Suspicion */}
-        <div className="signal-card">
-          <div className="signal-label">Synthetic Suspicion (Supporting)</div>
-          <div className="signal-value" style={{ color: synthPct >= 60 ? '#f59e0b' : '#60a5fa' }}>
-            {synthPct}%
+        {/* Signal 4: Identity Consistency */}
+        <div className="card" style={{ padding: '1.25rem' }}>
+          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
+            Identity Consistency
           </div>
-          <div className="progress-bar-bg">
-            <div
-              className="progress-bar-fill"
-              style={{
-                width: `${Math.min(100, synthPct)}%`,
-                backgroundColor: synthPct >= 60 ? '#f59e0b' : '#60a5fa',
-              }}
-            />
-          </div>
-          <div className="signal-desc">Supporting frequency signal only</div>
-        </div>
-
-        {/* Signal 5: Identity Consistency */}
-        <div className="signal-card">
-          <div className="signal-label">Identity Consistency</div>
-          <div className="signal-value" style={{ color: getCoherenceColor(coherencePct) }}>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: getCoherenceColor(coherencePct), fontFamily: 'JetBrains Mono' }}>
             {coherencePct}%
           </div>
-          <div className="progress-bar-bg">
+          <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
             <div
-              className="progress-bar-fill"
               style={{
                 width: `${Math.min(100, coherencePct)}%`,
+                height: '100%',
                 backgroundColor: getCoherenceColor(coherencePct),
+                transition: 'width 0.4s ease',
               }}
             />
           </div>
-          <div className="signal-desc">{coherenceTierLabel}</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{coherenceTierLabel}</div>
         </div>
       </div>
     </div>

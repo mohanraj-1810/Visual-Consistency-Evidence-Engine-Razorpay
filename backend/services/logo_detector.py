@@ -1,14 +1,13 @@
 """
 services/logo_detector.py — Automatic Logo and Brand Consistency Engine.
-Compares extracted merchant logo against verified brand references using ViT embeddings,
-and cross-corroborates with Google Cloud Vision Logo Detection when available.
-Guarantees that Google Vision alone does not trigger false logo mismatch penalties,
+Compares extracted merchant logo against verified brand references using ViT embeddings.
+Guarantees that uncorroborated open-web noise does not trigger false logo mismatch penalties,
 and marks status as UNAVAILABLE when trusted brand data is absent.
 """
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, Optional, Any, Tuple
 from PIL import Image
 
 from visual.vit_embeddings import get_image_embedding, compute_cosine_similarity
@@ -19,11 +18,9 @@ def verify_merchant_logo(
     logo_image: Optional[Image.Image],
     logo_url: Optional[str],
     claimed_brand: Optional[str],
-    detected_logos: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
     """
-    Verifies merchant logo against official verified brand records and
-    corroborates with Google Cloud Vision logo recognition signals.
+    Verifies merchant logo against official verified brand records.
 
     Returns
     -------
@@ -46,22 +43,12 @@ def verify_merchant_logo(
 
     sim_pct = int(round(sim * 100))
 
-    # Incorporate Google Cloud Vision logo detections if available
-    vision_corroboration = ""
-    if detected_logos:
-        for d_logo in detected_logos:
-            brand_name = d_logo.get("brand_name", "")
-            conf = d_logo.get("confidence", 0.0)
-            if brand_name and claimed_brand.lower() in brand_name.lower():
-                vision_corroboration = f" (Corroborated by Google Cloud Vision: '{brand_name}' confidence {int(conf*100)}%)"
-                break
-
     if sim < 0.60:
         # High divergence from verified logo
         mismatch_score = int(round((1.0 - sim) * 100))
         explanation = (
             f"Potential logo mismatch ({sim_pct}% visual match with verified {matched_name} logo). "
-            f"Extracted website logo exhibits notable visual divergence from registered brand asset.{vision_corroboration}"
+            f"Extracted website logo exhibits notable visual divergence from registered brand asset."
         )
         evidence = {
             "asset_url": logo_url or "merchant_logo",
@@ -79,7 +66,7 @@ def verify_merchant_logo(
         mismatch_score = int(round((0.80 - sim) * 50))
         explanation = (
             f"Moderate visual variation ({sim_pct}% match with verified {matched_name} logo). "
-            f"Logo style or format variant detected.{vision_corroboration}"
+            f"Logo style or format variant detected."
         )
         evidence = {
             "asset_url": logo_url or "merchant_logo",
@@ -94,7 +81,7 @@ def verify_merchant_logo(
         return "VERIFIED", evidence
     else:
         # Strong match
-        explanation = f"Extracted logo matches verified official {matched_name} brand asset ({sim_pct}% similarity).{vision_corroboration}"
+        explanation = f"Extracted logo matches verified official {matched_name} brand asset ({sim_pct}% similarity)."
         evidence = {
             "asset_url": logo_url or "merchant_logo",
             "asset_type": "logo",

@@ -6,14 +6,40 @@ LocalReferenceEvidenceProvider is preserved solely as a controlled test fixture.
 
 from __future__ import annotations
 
+import os
 import io
 import re
+import json
 import urllib.parse
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from PIL import Image
 import requests
+
+# ── Auto-load .env configuration ──────────────────────────────────────────────
+def _load_env_files():
+    """Load .env files without requiring external packages."""
+    env_paths = [
+        Path(__file__).resolve().parent.parent / ".env",
+        Path(__file__).resolve().parent.parent.parent / ".env",
+        Path.cwd() / ".env",
+    ]
+    for env_path in env_paths:
+        if env_path.exists() and env_path.is_file():
+            try:
+                for line in env_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    k, v = k.strip(), v.strip().strip("'\"")
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+            except Exception:
+                pass
+
+_load_env_files()
 
 _HEADERS = {
     "User-Agent": (
@@ -59,12 +85,14 @@ class BaseEvidenceProvider(ABC):
 class WebSearchEvidenceProvider(BaseEvidenceProvider):
     """
     Discovers real-world online visual candidates via public web endpoints or commercial APIs.
-    Supports Serper.dev, SerpApi, and Google Custom Search Engine if API keys are set in the environment.
+    Supports Serper.dev (SERPER_API_KEY), SerpApi (SERPAPI_API_KEY), and Google CSE (GOOGLE_API_KEY + GOOGLE_CSE_ID).
+    Falls back gracefully to DuckDuckGo search if no API keys are configured.
     Uses concurrent thread pools for fast parallel candidate fetching and image downloads.
     """
 
     def __init__(self, timeout: int = _REQUEST_TIMEOUT):
         self.timeout = timeout
+        _load_env_files()
 
     def _fetch_candidate_details(self, idx: int, actual_url: str, title_text: str, domain: str, img_src: Optional[str]) -> Optional[Dict[str, Any]]:
         """Helper to fetch and parse candidate webpage or download its image in parallel."""
@@ -139,7 +167,6 @@ class WebSearchEvidenceProvider(BaseEvidenceProvider):
         max_candidates: int = 4,
         category: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        import os
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         if not query or len(query.strip()) < 2:
@@ -151,16 +178,17 @@ class WebSearchEvidenceProvider(BaseEvidenceProvider):
 
         raw_results = []
 
-        # ── 1. Commercial API Integration (Enterprise Grade) ───────────────────
+        # ── 1. Commercial API Integration: Serper.dev Priority ────────────────
+        _load_env_files()
         serper_key = os.environ.get("SERPER_API_KEY")
         serpapi_key = os.environ.get("SERPAPI_API_KEY")
         google_api_key = os.environ.get("GOOGLE_API_KEY")
         google_cse_id = os.environ.get("GOOGLE_CSE_ID")
 
-        if serper_key:
+        if serper_key and serper_key.strip() and not serper_key.startswith("<"):
             # Serper.dev Google Search API
             try:
-                headers = {"X-API-KEY": serper_key, "Content-Type": "application/json"}
+                headers = {"X-API-KEY": serper_key.strip(), "Content-Type": "application/json"}
                 payload = json.dumps({"q": search_query, "num": max_candidates * 2})
                 resp = requests.post("https://google.serper.dev/search", headers=headers, data=payload, timeout=self.timeout)
                 if resp.status_code == 200:
@@ -171,13 +199,13 @@ class WebSearchEvidenceProvider(BaseEvidenceProvider):
                             "title": item.get("title"),
                             "img_src": item.get("imageUrl") or (item.get("images", [{}])[0].get("url") if item.get("images") else None)
                         })
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[ONLINE_SEARCH] Serper query notice: {e}")
 
-        elif serpapi_key:
+        elif serpapi_key and serpapi_key.strip() and not serpapi_key.startswith("<"):
             # SerpApi integration
             try:
-                params = {"q": search_query, "api_key": serpapi_key, "num": max_candidates * 2}
+                params = {"q": search_query, "api_key": serpapi_key.strip(), "num": max_candidates * 2}
                 resp = requests.get("https://serpapi.com/search", params=params, timeout=self.timeout)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -187,8 +215,8 @@ class WebSearchEvidenceProvider(BaseEvidenceProvider):
                             "title": item.get("title"),
                             "img_src": item.get("thumbnail")
                         })
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[ONLINE_SEARCH] SerpApi notice: {e}")
 
         elif google_api_key and google_cse_id:
             # Official Google CSE Engine
@@ -207,10 +235,10 @@ class WebSearchEvidenceProvider(BaseEvidenceProvider):
                             "title": item.get("title"),
                             "img_src": img_src
                         })
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[ONLINE_SEARCH] Google CSE notice: {e}")
 
-        # ── 2. Highly Robust Scraping Fallback ────────────────────────────────
+        # ── 2. Robust DuckDuckGo HTML Scraping Fallback ────────────────────────
         if not raw_results:
             try:
                 search_url = "https://html.duckduckgo.com/html/"
@@ -251,7 +279,7 @@ class WebSearchEvidenceProvider(BaseEvidenceProvider):
         if not raw_results:
             return []
 
-        # ── 3. Parallel Processing of Candidates (Diamond Upgrade) ──────────────
+        # ── 3. Parallel Processing of Candidates ──────────────────────────────
         candidates: List[Dict[str, Any]] = []
         with ThreadPoolExecutor(max_workers=min(8, len(raw_results))) as executor:
             futures = []

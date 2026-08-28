@@ -71,7 +71,12 @@ def download_image(url: str) -> Optional[Tuple[Image.Image, str, bytes]]:
         if len(raw_bytes) < 150:
             return None
 
-        img = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
+        raw_img = Image.open(io.BytesIO(raw_bytes))
+        if raw_img.mode in ("RGBA", "LA") or (raw_img.mode == "P" and "transparency" in raw_img.info):
+            img = raw_img.convert("RGBA").convert("RGB")
+        else:
+            img = raw_img.convert("RGB")
+
         w, h = img.size
         if w > _MAX_DIMENSION or h > _MAX_DIMENSION:
             img.thumbnail((_MAX_DIMENSION, _MAX_DIMENSION), Image.Resampling.LANCZOS)
@@ -86,7 +91,7 @@ def compute_dhash(image: Image.Image, hash_size: int = 8) -> int:
     """Computes a 64-bit difference hash (dHash) for fast perceptual deduplication."""
     try:
         resized = image.convert("L").resize((hash_size + 1, hash_size), Image.Resampling.LANCZOS)
-        pixels = list(resized.getdata())
+        pixels = np.asarray(resized).flatten()
         diff = []
         for row in range(hash_size):
             for col in range(hash_size):
@@ -94,7 +99,7 @@ def compute_dhash(image: Image.Image, hash_size: int = 8) -> int:
                 diff.append(pixels[idx] > pixels[idx + 1])
         decimal_val = 0
         for bit in diff:
-            decimal_val = (decimal_val << 1) | bit
+            decimal_val = (decimal_val << 1) | int(bit)
         return decimal_val
     except Exception:
         return 0

@@ -5,6 +5,7 @@ Provides REST API endpoints for Visual Consistency & Evidence Engine.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -21,7 +22,6 @@ from visual.vit_embeddings import load_vit_model
 from routes.analyze import router as analyze_router
 from api.routes import router as async_api_router
 from api.websockets import router as ws_router
-from services.web_image_search import get_vision_status
 
 
 # Ensure utf-8 output on Windows
@@ -42,9 +42,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[WARN] Model pre-warm notice: {e}")
     
-    # Log Google Cloud Vision status
-    v_stat = get_vision_status()
-    print(f"[VISION] Google Cloud Vision Mode: {v_stat['analysis_mode']} (Key Configured: {v_stat['api_key_configured']})")
+    serper_configured = bool(os.environ.get("SERPER_API_KEY") and not os.environ.get("SERPER_API_KEY").startswith("<") and not "your_serper" in os.environ.get("SERPER_API_KEY"))
+    print(f"[EVIDENCE_PROVIDER] Active Provider: WebSearchEvidenceProvider (Serper.dev: {'Configured' if serper_configured else 'Using DuckDuckGo fallback'})")
     
     yield
     print("[INFO] Shutting down Visual Consistency Engine.")
@@ -84,20 +83,14 @@ app.include_router(ws_router, prefix="", tags=["WebSockets"])
 @app.get("/health")
 async def health_check():
     """Service health and readiness check."""
+    serper_key = os.environ.get("SERPER_API_KEY")
+    serper_configured = bool(serper_key and not serper_key.startswith("<") and "your_serper" not in serper_key)
     return {
         "status": "healthy",
         "service": "Visual Consistency & Evidence Engine",
         "version": "1.0.0",
-        "vision_intelligence": get_vision_status(),
-    }
-
-
-@app.get("/vision/status")
-async def vision_status():
-    """Google Cloud Vision API configuration, credential, and cache status."""
-    return {
-        "status": "ok",
-        "vision_intelligence": get_vision_status(),
+        "evidence_provider": "WebSearchEvidenceProvider",
+        "serper_api_configured": serper_configured,
     }
 
 
@@ -134,4 +127,3 @@ if __name__ == "__main__":
     print("=" * 70)
 
     uvicorn.run("main:app", host=args.host, port=args.port, reload=args.reload, workers=args.workers)
-

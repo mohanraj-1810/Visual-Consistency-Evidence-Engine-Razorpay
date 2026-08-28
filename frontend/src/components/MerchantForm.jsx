@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Globe, Play, CheckCircle2, Loader2, Sparkles, X, Link2, ExternalLink } from 'lucide-react';
+import { Globe, Play, CheckCircle2, Loader2, Sparkles, X, Link2, ExternalLink, ShieldAlert } from 'lucide-react';
 
 const ANALYSIS_STEPS = [
   { id: 'crawl', label: 'Website crawled' },
@@ -10,16 +10,16 @@ const ANALYSIS_STEPS = [
   { id: 'vit', label: 'ViT verification completed' },
   { id: 'logo', label: 'Logo checked' },
   { id: 'reuse', label: 'Image reuse checked' },
-  { id: 'manipulation', label: 'Manipulation checked' },
-  { id: 'identity', label: 'Identity checked' },
-  { id: 'fusion', label: 'Risk fusion completed' },
+  { id: 'manipulation', label: 'Digital tampering checked' },
+  { id: 'identity', label: 'Cross-image coherence checked' },
+  { id: 'fusion', label: 'Multimodal risk fusion completed' },
 ];
 
 const SAMPLE_URLS = [
   { name: 'Artisan Pottery (Clean)', url: 'https://example.com' },
   { name: 'Live Web Test', url: 'https://httpbin.org' },
-  { name: 'Stripe Brand Wikipedia', url: 'https://en.wikipedia.org/wiki/Stripe,_Inc.' },
-  { name: 'Razorpay Brand Asset', url: 'https://razorpay.com' },
+  { name: 'Stripe Brand Asset', url: 'https://en.wikipedia.org/wiki/Stripe,_Inc.' },
+  { name: 'Razorpay Platform', url: 'https://razorpay.com' },
 ];
 
 export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) {
@@ -58,22 +58,34 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
 
   return (
     <div className="card" style={{ marginBottom: '2rem', padding: '1.75rem' }}>
-      <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '0.45rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Globe size={22} color="#818cf8" />
+      <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div
+            style={{
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              padding: '0.5rem',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Globe size={22} color="#60a5fa" />
           </div>
           <div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>
-              Visual Merchant Risk Engine
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em' }}>
+              Merchant Visual Risk Underwriting
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400 }}>
-              Autonomous Visual Intelligence & Multimodal Risk Verification
+            <div style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 400 }}>
+              Automated crawling, online evidence discovery, and ViT cosine verification
             </div>
           </div>
         </div>
-        <span style={{ fontSize: '0.78rem', color: '#a5b4fc', background: '#0f172a', padding: '0.35rem 0.85rem', borderRadius: '20px', border: '1px solid rgba(99, 102, 241, 0.3)', fontWeight: 600 }}>
-          URL Ingestion Only • Auto Evidence Discovery
+
+        <span className="status-pill blue">
+          <Sparkles size={13} />
+          <span>AUTONOMOUS RISK AUDIT</span>
         </span>
       </div>
 
@@ -82,10 +94,10 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
       </p>
 
       <form onSubmit={handleSubmit}>
-        <div className="form-group" style={{ marginBottom: '1rem' }}>
-          <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+        <div style={{ marginBottom: '1.25rem' }}>
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
             <span style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.9rem' }}>Merchant Website URL</span>
-            <span style={{ fontSize: '0.76rem', color: '#64748b' }}>Enter domain or full URL (e.g. example.com or https://store.com)</span>
+            <span style={{ fontSize: '0.76rem', color: '#64748b' }}>Enter domain or storefront URL (e.g. store.com or https://example.com)</span>
           </label>
 
           {/* Upgraded Large Interactive Input Container */}
@@ -94,26 +106,26 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
               display: 'flex',
               gap: '0.75rem',
               alignItems: 'stretch',
-              background: '#0a0f1d',
-              border: '2px solid #334155',
+              background: '#0d0e14',
+              border: '1px solid #23242e',
               borderRadius: '12px',
               padding: '0.4rem',
               transition: 'all 0.2s ease',
-              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
             }}
             onFocus={(e) => {
-              e.currentTarget.style.borderColor = '#6366f1';
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4)';
+              e.currentTarget.style.borderColor = '#3b82f6';
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.25), 0 6px 24px rgba(0, 0, 0, 0.5)';
             }}
             onBlur={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget)) {
-                e.currentTarget.style.borderColor = '#334155';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.3)';
+                e.currentTarget.style.borderColor = '#23242e';
+                e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.4)';
               }
             }}
           >
             {/* Left Icon */}
-            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '0.75rem', color: '#6366f1' }}>
+            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '0.85rem', color: '#3b82f6' }}>
               <Link2 size={20} />
             </div>
 
@@ -121,10 +133,9 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
             <input
               ref={inputRef}
               type="text"
-              className="url-live-input"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="e.g. https://your-merchant-website.com or brand.com"
+              placeholder="e.g. https://your-merchant-storefront.com"
               required
               autoComplete="off"
               spellCheck="false"
@@ -136,7 +147,7 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
                 color: '#ffffff',
                 fontSize: '1.05rem',
                 fontWeight: 500,
-                padding: '0.65rem 0.5rem',
+                padding: '0.7rem 0.5rem',
                 fontFamily: 'inherit',
               }}
             />
@@ -169,46 +180,18 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
             <button
               type="submit"
               disabled={loading || !url.trim()}
-              style={{
-                background: loading
-                  ? 'linear-gradient(135deg, #4338ca 0%, #3730a3 100%)'
-                  : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '0.75rem 1.6rem',
-                fontSize: '0.95rem',
-                fontWeight: 700,
-                letterSpacing: '0.03em',
-                cursor: loading || !url.trim() ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.55rem',
-                minWidth: '210px',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px rgba(79, 70, 229, 0.4)',
-              }}
-              onMouseEnter={(e) => {
-                if (!loading && url.trim()) {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.5)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(79, 70, 229, 0.4)';
-              }}
+              className="btn-primary"
+              style={{ minWidth: '220px', justifyContent: 'center' }}
             >
               {loading ? (
                 <>
-                  <Loader2 size={18} className="spinner" />
-                  <span>ANALYZING WEBSITE...</span>
+                  <Loader2 size={18} className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
+                  <span>ANALYZING RISK...</span>
                 </>
               ) : (
                 <>
                   <Play size={16} fill="currentColor" />
-                  <span>ANALYZE WEBSITE</span>
+                  <span>ANALYZE MERCHANT</span>
                 </>
               )}
             </button>
@@ -216,115 +199,84 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
         </div>
 
         {/* Quick Sample Selector Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginTop: '1rem' }}>
           <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Quick test targets:</span>
           {SAMPLE_URLS.map((sample, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => handleSelectSample(sample.url)}
+              className="preset-chip"
               style={{
-                background: url === sample.url ? 'rgba(99, 102, 241, 0.2)' : '#0f172a',
-                border: url === sample.url ? '1px solid #6366f1' : '1px solid #334155',
-                color: url === sample.url ? '#c7d2fe' : '#94a3b8',
-                borderRadius: '6px',
-                padding: '0.35rem 0.75rem',
-                fontSize: '0.78rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#6366f1';
-                e.currentTarget.style.color = '#ffffff';
-              }}
-              onMouseLeave={(e) => {
-                if (url !== sample.url) {
-                  e.currentTarget.style.borderColor = '#334155';
-                  e.currentTarget.style.color = '#94a3b8';
-                }
+                borderColor: url === sample.url ? '#3b82f6' : undefined,
+                background: url === sample.url ? 'rgba(59, 130, 246, 0.15)' : undefined,
+                color: url === sample.url ? '#93c5fd' : undefined,
               }}
             >
+              <ExternalLink size={12} />
               <span>{sample.name}</span>
-              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>({sample.url.replace('https://', '')})</span>
             </button>
           ))}
         </div>
+      </form>
 
-        {/* Live Real-Time Stepper During Analysis */}
-        {loading && (
+      {/* Real-time Progress Stepper when Loading */}
+      {loading && (
+        <div
+          style={{
+            marginTop: '1.75rem',
+            padding: '1.25rem 1.5rem',
+            background: 'rgba(14, 15, 20, 0.9)',
+            border: '1px solid #23242e',
+            borderRadius: '12px',
+            backdropFilter: 'blur(16px)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="pulse-dot blue"></span>
+              <strong style={{ fontSize: '0.9rem', color: '#60a5fa' }}>Autonomous Analysis Pipeline In Progress...</strong>
+            </div>
+            <span className="data-chip">ViT Engine Active</span>
+          </div>
+
           <div
             style={{
-              marginTop: '1.5rem',
-              background: '#0b1120',
-              border: '1px solid #1e293b',
-              borderRadius: '12px',
-              padding: '1.25rem 1.5rem',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '0.5rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#818cf8', fontWeight: 700, fontSize: '0.92rem' }}>
-                <Sparkles size={16} />
-                <span>Live Multimodal Risk Pipeline Execution</span>
-              </div>
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Real-time execution signals</span>
-            </div>
+            {ANALYSIS_STEPS.map((step) => {
+              const isDone = currentSteps[step.id] === 'completed' || currentSteps[step.id] === 'done' || currentSteps.all_done;
+              const isActive = currentSteps[step.id] === 'running' || currentSteps[step.id] === 'in_progress';
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '0.6rem',
-              }}
-            >
-              {ANALYSIS_STEPS.map((step, idx) => {
-                const isDone = currentSteps[step.id] === 'completed' || currentSteps['all_done'];
-                const isRunning = !isDone && (idx === 0 || currentSteps[ANALYSIS_STEPS[idx - 1]?.id] === 'completed');
-
-                return (
-                  <div
-                    key={step.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.5rem 0.75rem',
-                      borderRadius: '6px',
-                      background: isDone ? 'rgba(34, 197, 94, 0.08)' : isRunning ? 'rgba(99, 102, 241, 0.14)' : '#0f172a',
-                      border: isDone ? '1px solid rgba(34, 197, 94, 0.3)' : isRunning ? '1px solid #6366f1' : '1px solid #1e293b',
-                      color: isDone ? '#86efac' : isRunning ? '#c7d2fe' : '#64748b',
-                      fontSize: '0.8rem',
-                      fontWeight: isDone || isRunning ? 500 : 400,
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    {isDone ? (
-                      <CheckCircle2 size={15} color="#22c55e" style={{ flexShrink: 0 }} />
-                    ) : isRunning ? (
-                      <Loader2 size={15} color="#818cf8" className="spinner" style={{ flexShrink: 0 }} />
-                    ) : (
-                      <div
-                        style={{
-                          width: '14px',
-                          height: '14px',
-                          borderRadius: '50%',
-                          border: '1.5px solid #475569',
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
-                    <span>{step.label}</span>
-                  </div>
-                );
-              })}
-            </div>
+              return (
+                <div
+                  key={step.id}
+                  className={`step-item ${isDone ? 'done' : isActive ? 'active' : ''}`}
+                >
+                  {isDone ? (
+                    <CheckCircle2 size={16} color="#10b981" />
+                  ) : isActive ? (
+                    <Loader2 size={16} color="#3b82f6" style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <div
+                      style={{
+                        width: '14px',
+                        height: '14px',
+                        borderRadius: '50%',
+                        border: '1.5px solid #334155',
+                      }}
+                    />
+                  )}
+                  <span>{step.label}</span>
+                </div>
+              );
+            })}
           </div>
-        )}
-      </form>
+        </div>
+      )}
     </div>
   );
 }

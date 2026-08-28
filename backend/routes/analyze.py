@@ -39,7 +39,6 @@ from scoring.visual_score import calculate_visual_risk_score, WEIGHTS
 from scoring.fusion import calculate_text_business_risk, fuse_risk_scores
 from crawler.site_crawler import crawl_merchant
 from crawler.image_extractor import process_and_prioritize_images, download_image
-from services.web_image_search import get_vision_client
 
 # Online Evidence Discovery & ViT Verification
 from online_evidence.candidate_search import discover_candidate_evidence
@@ -432,21 +431,24 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     verifies via ViT, and fuses risk signals.
     Guarantees clean, 100% JSON-serializable output.
     """
-    # Determine Vision API mode upfront so it surfaces in the response
-    _, web_detection_mode = get_vision_client()
+    # Determine active online evidence provider mode
+    serper_key = os.environ.get("SERPER_API_KEY")
+    serper_active = bool(serper_key and not serper_key.startswith("<") and "your_serper" not in serper_key)
+    web_detection_mode = "LIVE_SEARCH_SERPER" if serper_active else "ONLINE_SEARCH_SCRAPING"
+
     if progress_callback:
-        progress_callback("crawl_started", "Crawling merchant website...")
+        progress_callback("crawl", "Crawling merchant website...")
 
     crawl_res = crawl_merchant(url)
 
     if progress_callback:
-        progress_callback("crawled", f"Website crawled ({len(crawl_res.get('image_objects', []))} raw images discovered)")
+        progress_callback("extract", f"Extracted {len(crawl_res.get('image_objects', []))} raw images from website")
 
     image_objects = crawl_res.get("image_objects", [])
     merchant_name = crawl_res.get("merchant_name") or crawl_res.get("domain", "Merchant")
 
     if progress_callback:
-        progress_callback("filtering", "Filtering useless/tiny/UI images & deduplicating...")
+        progress_callback("prioritize", "Filtering useless/tiny/UI images & deduplicating...")
 
     proc_res = process_and_prioritize_images(
         image_objects,
@@ -456,7 +458,7 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
 
     if progress_callback:
         progress_callback(
-            "prioritized",
+            "prioritize",
             f"Selected {len(proc_res['representative_images'])} important product visual(s) & brand assets"
         )
 
@@ -476,7 +478,7 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         product_images = [dummy_img]
 
     if progress_callback:
-        progress_callback("searching_evidence", "Searching public online sources for visual candidate evidence...")
+        progress_callback("search", "Searching public online sources for visual candidate evidence...")
 
     domain_name = crawl_res.get("domain", url)
     crawl_ok = crawl_res.get("crawl_successful", False)
@@ -528,7 +530,10 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     }
 
     if progress_callback:
-        progress_callback("vit_verification", "Running ViT feature extraction & cosine similarity verification...")
+        progress_callback("candidates", "Collecting candidate images from search results...")
+
+    if progress_callback:
+        progress_callback("vit", "Running ViT feature extraction & cosine similarity verification...")
 
     result = run_pipeline(
         merchant_name=merchant_name,
@@ -544,7 +549,11 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     )
 
     if progress_callback:
-        progress_callback("risk_fusion", "Multimodal risk fusion & explainable reasoning completed")
+        progress_callback("logo", "Logo consistency check completed")
+        progress_callback("reuse", "Image reuse analysis completed")
+        progress_callback("manipulation", "Digital manipulation forensics completed")
+        progress_callback("identity", "Cross-image identity coherence checked")
+        progress_callback("fusion", "Multimodal risk fusion & explainable reasoning completed")
 
     # Attach crawler context
     result["image_processing_metrics"] = {
@@ -556,11 +565,12 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     }
     result["extracted_products"] = crawl_res.get("products", [])
 
-    # Surface Vision API mode at top level so the UI can show a SIMULATED badge
+    # Surface online search provider mode
     result["web_detection_mode"] = web_detection_mode
-    result["web_detection_simulated"] = (web_detection_mode == "SIMULATED_DEMO_MODE")
+    result["web_detection_simulated"] = (web_detection_mode != "LIVE_SEARCH_SERPER")
 
     return sanitize_for_json(result)
+
 
 
 @router.post("/analyze")
@@ -604,34 +614,80 @@ async def analyze_stream(url: str = Query(..., description="Merchant website URL
     Streams real-time step progress events as the crawler, filter, search, ViT,
     and fusion engines execute, ending with the complete analysis result payload.
     """
-    async def event_generator() -> AsyncGenerator[str, None]:
-        # Step 1: Initial Crawl Notice
-        yield f"data: {safe_json_dumps({'type': 'step', 'step': 'crawl', 'label': 'Website crawled', 'status': 'in_progress', 'message': 'Crawling merchant site and extracting metadata...'})}\n\n"
-        await asyncio.sleep(0.05)
+    import queue
+    import threading
 
-        try:
-            loop = asyncio.get_running_loop()
-            res = await loop.run_in_executor(None, execute_website_analysis, url)
-            
-            # Send completion sequence for UI stepper
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'crawl', 'label': 'Website crawled', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'extract', 'label': 'Images extracted', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'prioritize', 'label': 'Important images identified', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'search', 'label': 'Online evidence searched', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'candidates', 'label': 'Candidate images collected', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'vit', 'label': 'ViT verification completed', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'logo', 'label': 'Logo checked', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'reuse', 'label': 'Image reuse checked', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'manipulation', 'label': 'Manipulation checked', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'identity', 'label': 'Identity checked', 'status': 'completed'})}\n\n"
-            yield f"data: {safe_json_dumps({'type': 'step', 'step': 'fusion', 'label': 'Risk fusion completed', 'status': 'completed'})}\n\n"
+    async def event_generator() -> AsyncGenerator[str, None]:
+        progress_queue: queue.Queue = queue.Queue()
+        result_holder: dict = {"result": None, "error": None}
+
+        def progress_callback(step_id: str, message: str):
+            """Thread-safe callback that pushes progress events into the queue."""
+            progress_queue.put({
+                "type": "step",
+                "step": step_id,
+                "label": message,
+                "status": "in_progress",
+                "message": message,
+            })
+
+        def run_analysis():
+            """Run the full analysis in a background thread with progress callbacks."""
+            try:
+                res = execute_website_analysis(url, progress_callback=progress_callback)
+                result_holder["result"] = res
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                result_holder["error"] = str(e)
+            finally:
+                progress_queue.put(None)  # Sentinel to signal completion
+
+        # Start analysis in a background thread
+        analysis_thread = threading.Thread(target=run_analysis, daemon=True)
+        analysis_thread.start()
+
+        # Send initial crawl notice
+        yield f"data: {safe_json_dumps({'type': 'step', 'step': 'crawl', 'label': 'Crawling merchant website...', 'status': 'in_progress', 'message': 'Crawling merchant site and extracting metadata...'})}\n\n"
+
+        # Stream progress events as they arrive from the background thread
+        while True:
+            try:
+                # Poll the queue with a short timeout so we can yield control
+                event = await asyncio.get_running_loop().run_in_executor(
+                    None, lambda: progress_queue.get(timeout=0.3)
+                )
+                if event is None:
+                    # Sentinel received — analysis is done
+                    break
+                yield f"data: {safe_json_dumps(event)}\n\n"
+            except queue.Empty:
+                # No event yet — send a heartbeat comment to keep the SSE connection alive
+                yield ": heartbeat\n\n"
+                continue
+
+        # Analysis finished — send completion for all steps
+        if result_holder["error"] is None:
+            completion_steps = [
+                ("crawl", "Website crawled"),
+                ("extract", "Images extracted"),
+                ("prioritize", "Important images identified"),
+                ("search", "Online evidence searched"),
+                ("candidates", "Candidate images collected"),
+                ("vit", "ViT verification completed"),
+                ("logo", "Logo checked"),
+                ("reuse", "Image reuse checked"),
+                ("manipulation", "Manipulation checked"),
+                ("identity", "Identity checked"),
+                ("fusion", "Risk fusion completed"),
+            ]
+            for step_id, label in completion_steps:
+                yield f"data: {safe_json_dumps({'type': 'step', 'step': step_id, 'label': label, 'status': 'completed'})}\n\n"
 
             # Final result payload (guaranteed JSON-serializable)
-            yield f"data: {safe_json_dumps({'type': 'result', 'data': res})}\n\n"
-
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            yield f"data: {safe_json_dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'result', 'data': result_holder['result']})}\n\n"
+        else:
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': result_holder['error']})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
