@@ -2,26 +2,34 @@ import React from 'react';
 import { Layers, Activity, ShieldCheck, Image as ImageIcon, Eye, Sparkles } from 'lucide-react';
 
 export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
-  const reusePct = Math.round((reuse?.max_similarity ?? 0.0) * 100);
-  const logoInconPct = Math.round(logo?.inconsistency_risk ?? 0.0);
-  const manipPct = Math.round(manipulation?.manipulation_score ?? 0.0);
-  const synthPct = Math.round(manipulation?.synthetic_score ?? 0.0);
-  const coherencePct = Math.round(identity?.coherence_score ?? 70.0);
+  const hasReuse = reuse?.max_similarity !== null && reuse?.max_similarity !== undefined;
+  const hasLogo = logo?.inconsistency_risk !== null && logo?.inconsistency_risk !== undefined;
+  const hasManip = manipulation?.manipulation_score !== null && manipulation?.manipulation_score !== undefined;
+  const hasCoherence = identity?.coherence_score !== null && identity?.coherence_score !== undefined;
+
+  const reusePct = hasReuse ? Math.round((reuse.max_similarity ?? 0.0) * 100) : null;
+  const logoInconPct = hasLogo ? Math.round(logo.inconsistency_risk ?? 0.0) : null;
+  const manipPct = hasManip ? Math.round(manipulation.manipulation_score ?? 0.0) : null;
+  const coherencePct = hasCoherence ? Math.round((identity.coherence_score <= 1.0 ? identity.coherence_score * 100 : identity.coherence_score)) : null;
 
   const getProgressColor = (val, thresholds = [40, 70]) => {
+    if (val === null || val === undefined) return '#64748b';
     if (val >= thresholds[1]) return '#f43f5e';
     if (val >= thresholds[0]) return '#f59e0b';
     return '#10b981';
   };
 
   const getCoherenceColor = (val) => {
+    if (val === null || val === undefined) return '#64748b';
     if (val >= 80) return '#10b981';
     if (val >= 55) return '#f59e0b';
     return '#f43f5e';
   };
 
   const coherenceTierLabel =
-    coherencePct >= 80
+    coherencePct === null
+      ? 'No visual assets to measure'
+      : coherencePct >= 80
       ? 'Strong internal visual consistency'
       : coherencePct >= 55
       ? 'Moderate internal visual consistency'
@@ -52,12 +60,12 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
             Image Reuse Index
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(reusePct, [70, 85]), fontFamily: 'JetBrains Mono' }}>
-            {reusePct}%
+            {reusePct !== null ? `${reusePct}%` : 'N/A'}
           </div>
           <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
             <div
               style={{
-                width: `${Math.min(100, reusePct)}%`,
+                width: reusePct !== null ? `${Math.min(100, reusePct)}%` : '0%',
                 height: '100%',
                 backgroundColor: getProgressColor(reusePct, [70, 85]),
                 transition: 'width 0.4s ease',
@@ -73,12 +81,12 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
             Logo Inconsistency
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(logoInconPct, [30, 60]), fontFamily: 'JetBrains Mono' }}>
-            {logoInconPct}%
+            {logoInconPct !== null ? `${logoInconPct}%` : 'N/A'}
           </div>
           <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
             <div
               style={{
-                width: `${Math.min(100, logoInconPct)}%`,
+                width: logoInconPct !== null ? `${Math.min(100, logoInconPct)}%` : '0%',
                 height: '100%',
                 backgroundColor: getProgressColor(logoInconPct, [30, 60]),
                 transition: 'width 0.4s ease',
@@ -94,12 +102,12 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
             Manipulation ELA
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(manipPct, [35, 65]), fontFamily: 'JetBrains Mono' }}>
-            {manipPct}%
+            {manipPct !== null ? `${manipPct}%` : 'N/A'}
           </div>
           <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
             <div
               style={{
-                width: `${Math.min(100, manipPct)}%`,
+                width: manipPct !== null ? `${Math.min(100, manipPct)}%` : '0%',
                 height: '100%',
                 backgroundColor: getProgressColor(manipPct, [35, 65]),
                 transition: 'width 0.4s ease',
@@ -115,12 +123,12 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
             Identity Consistency
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 800, color: getCoherenceColor(coherencePct), fontFamily: 'JetBrains Mono' }}>
-            {coherencePct}%
+            {coherencePct !== null ? `${coherencePct}%` : 'N/A'}
           </div>
           <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
             <div
               style={{
-                width: `${Math.min(100, coherencePct)}%`,
+                width: coherencePct !== null ? `${Math.min(100, coherencePct)}%` : '0%',
                 height: '100%',
                 backgroundColor: getCoherenceColor(coherencePct),
                 transition: 'width 0.4s ease',

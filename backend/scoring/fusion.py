@@ -134,6 +134,8 @@ def fuse_risk_scores(
                 "final_risk_score": None,
                 "text_risk_score": None,
                 "visual_risk_score": None,
+                "identity_coherence": None,
+                "tampering_score": None,
                 "status": "COMPLIANCE_LIMITED",
                 "status_label": "COMPLIANCE-LIMITED — ACCESS RESTRICTED PER POLICY",
                 "recommendation": "Merchant site is active, but robots.txt restricts automated bot indexing. Evaluate merchant via manual analyst review or merchant-authorized integration.",
@@ -147,6 +149,7 @@ def fuse_risk_scores(
                 "is_unverifiable": True,
                 "is_compliance_limited": True,
                 "is_bot_blocked": False,
+                "is_redirect_limit_exceeded": False,
                 "crawl_status": crawl_status,
                 "crawl_error": crawl_err_msg or "Robots.txt policy restricts automated crawler access.",
             }
@@ -156,6 +159,8 @@ def fuse_risk_scores(
                 "final_risk_score": None,
                 "text_risk_score": None,
                 "visual_risk_score": None,
+                "identity_coherence": None,
+                "tampering_score": None,
                 "status": "BOT_BLOCKED",
                 "status_label": "COULD NOT VERIFY — ANTI-BOT PROTECTION (HTTP 403)",
                 "recommendation": "Target site's anti-bot system (Cloudflare/PerimeterX/WAF) blocked automated scraper access. Review merchant manually or through direct merchant integration.",
@@ -169,14 +174,42 @@ def fuse_risk_scores(
                 "is_unverifiable": True,
                 "is_compliance_limited": False,
                 "is_bot_blocked": True,
+                "is_redirect_limit_exceeded": False,
                 "crawl_status": crawl_status,
                 "crawl_error": crawl_err_msg or "Anti-bot protection blocked automated access (HTTP 403).",
+            }
+
+        if crawl_status == "REDIRECT_LIMIT_EXCEEDED":
+            return {
+                "final_risk_score": None,
+                "text_risk_score": None,
+                "visual_risk_score": None,
+                "identity_coherence": None,
+                "tampering_score": None,
+                "status": "REDIRECT_LIMIT_EXCEEDED",
+                "status_label": "UNVERIFIABLE — REDIRECT SAFETY LIMIT EXCEEDED",
+                "recommendation": "Merchant site exceeded the safety redirect limit (3 hops), indicating a redirect loop, geo-block, or consent wall. Manual review required.",
+                "badge_color": "#f59e0b",  # Amber / Warning badge
+                "reasons": [
+                    f"Redirect Limit Exceeded: Automated crawl aborted after exceeding 3 redirect hops on {crawler_data.get('domain') if crawler_data else 'merchant site'}.",
+                    "Possible redirect loop, geographic redirection wall, or dynamic cookie consent loop.",
+                    "Automated visual scoring suspended — requires manual verification by Risk Operations.",
+                ],
+                "merchant_name": merchant_name,
+                "is_unverifiable": True,
+                "is_compliance_limited": False,
+                "is_bot_blocked": False,
+                "is_redirect_limit_exceeded": True,
+                "crawl_status": crawl_status,
+                "crawl_error": crawl_err_msg or "Crawl diagnostic: redirect chain exceeded safety limit of 3 hops.",
             }
 
         return {
             "final_risk_score": None,
             "text_risk_score": None,
             "visual_risk_score": None,
+            "identity_coherence": None,
+            "tampering_score": None,
             "status": "UNVERIFIABLE",
             "status_label": "UNVERIFIABLE — INSUFFICIENT EVIDENCE",
             "recommendation": "Merchant site was unreachable or returned errors (DNS/Network/HTTP). Automated visual verification cannot be performed. Manual risk investigation required.",

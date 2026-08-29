@@ -121,7 +121,7 @@ visual-consistency-engine/
 │   │   ├── candidate_search.py     # Reverse visual search & candidate discovery
 │   │   ├── verifier.py             # ViT verification, similarity thresholding & domain attribution
 │   │   ├── reasoning.py            # Evidence synthesis & explainable rationale generation
-│   │   └── provider.py             # Google Cloud Vision / local fallback provider
+│   │   └── provider.py             # Serper.dev Google Search & DuckDuckGo fallback provider
 │   ├── scoring/
 │   │   ├── visual_score.py         # Sub-score aggregation (reuse, logo, manipulation, synthetic)
 │   │   └── fusion.py               # Multimodal fusion & text vs visual discrepancy logic

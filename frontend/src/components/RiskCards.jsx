@@ -6,14 +6,37 @@ export default function RiskCards({ fusion, claims, webDetectionMode, webDetecti
 
   const isComplianceLimited = fusion.status === 'COMPLIANCE_LIMITED' || fusion.is_compliance_limited;
   const isBotBlocked = fusion.status === 'BOT_BLOCKED' || fusion.is_bot_blocked;
-  const isUnverifiable = (fusion.status === 'UNVERIFIABLE' || fusion.is_unverifiable || fusion.final_risk_score === null) && !isComplianceLimited && !isBotBlocked;
+  const isRedirectLimitExceeded = fusion.status === 'REDIRECT_LIMIT_EXCEEDED' || fusion.is_redirect_limit_exceeded;
+  const isUnverifiable = (fusion.status === 'UNVERIFIABLE' || fusion.is_unverifiable || fusion.final_risk_score === null) && !isComplianceLimited && !isBotBlocked && !isRedirectLimitExceeded;
+  const isAnyUnverifiable = isUnverifiable || isComplianceLimited || isBotBlocked || isRedirectLimitExceeded;
+
   const textScore = fusion.text_risk_score;
   const visualScore = fusion.visual_risk_score;
   const finalScore = fusion.final_risk_score;
-  const status = fusion.status ?? (isComplianceLimited ? 'COMPLIANCE_LIMITED' : isBotBlocked ? 'BOT_BLOCKED' : isUnverifiable ? 'UNVERIFIABLE' : 'LOW');
-  const statusLabel = fusion.status_label ?? (isComplianceLimited ? 'COMPLIANCE-LIMITED — ACCESS RESTRICTED PER POLICY' : isBotBlocked ? 'COULD NOT VERIFY — ANTI-BOT PROTECTION (HTTP 403)' : isUnverifiable ? 'UNVERIFIABLE — INSUFFICIENT EVIDENCE' : 'LOW RISK — NORMAL ONBOARDING');
+  const status = fusion.status ?? (isComplianceLimited ? 'COMPLIANCE_LIMITED' : isBotBlocked ? 'BOT_BLOCKED' : isRedirectLimitExceeded ? 'REDIRECT_LIMIT_EXCEEDED' : isUnverifiable ? 'UNVERIFIABLE' : 'LOW');
+  const statusLabel = fusion.status_label ?? (
+    isComplianceLimited
+      ? 'COMPLIANCE-LIMITED — ACCESS RESTRICTED PER POLICY'
+      : isBotBlocked
+      ? 'COULD NOT VERIFY — ANTI-BOT PROTECTION (HTTP 403)'
+      : isRedirectLimitExceeded
+      ? 'UNVERIFIABLE — REDIRECT SAFETY LIMIT EXCEEDED'
+      : isUnverifiable
+      ? 'UNVERIFIABLE — INSUFFICIENT EVIDENCE'
+      : 'LOW RISK — NORMAL ONBOARDING'
+  );
   const recommendation = fusion.recommendation ?? 'Merchant exhibits normal risk parameters.';
-  const badgeColor = fusion.badge_color ?? (isComplianceLimited ? '#3b82f6' : isBotBlocked ? '#6366f1' : isUnverifiable ? '#64748b' : '#10b981');
+  const badgeColor = fusion.badge_color ?? (
+    isComplianceLimited
+      ? '#3b82f6'
+      : isBotBlocked
+      ? '#6366f1'
+      : isRedirectLimitExceeded
+      ? '#f59e0b'
+      : isUnverifiable
+      ? '#64748b'
+      : '#10b981'
+  );
 
   // Gauge calculation
   const scoreVal = typeof finalScore === 'number' ? Math.max(0, Math.min(100, finalScore)) : 0;
@@ -21,10 +44,51 @@ export default function RiskCards({ fusion, claims, webDetectionMode, webDetecti
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (scoreVal / 100) * circumference;
 
-  const riskBandColor = isUnverifiable ? '#64748b' : scoreVal >= 70 ? '#f43f5e' : scoreVal >= 40 ? '#f59e0b' : '#10b981';
+  const riskBandColor = isRedirectLimitExceeded
+    ? '#f59e0b'
+    : isUnverifiable
+    ? '#64748b'
+    : isComplianceLimited
+    ? '#3b82f6'
+    : isBotBlocked
+    ? '#6366f1'
+    : scoreVal >= 70
+    ? '#f43f5e'
+    : scoreVal >= 40
+    ? '#f59e0b'
+    : '#10b981';
 
   return (
     <div style={{ marginBottom: '2.5rem' }}>
+      {/* ── REDIRECT_LIMIT_EXCEEDED notice banner ── */}
+      {isRedirectLimitExceeded && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.85rem',
+            background: 'rgba(245, 158, 11, 0.12)',
+            border: '1px solid rgba(245, 158, 11, 0.4)',
+            borderRadius: '10px',
+            padding: '1rem 1.25rem',
+            marginBottom: '1.25rem',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          <AlertTriangle size={22} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <span className="status-pill amber">REDIRECT LIMIT EXCEEDED</span>
+              <strong style={{ color: '#fef3c7', fontSize: '0.95rem' }}>
+                Automated Crawl Aborted — Target Exceeded Safety Limit of 3 Redirect Hops
+              </strong>
+            </div>
+            <p style={{ color: '#cbd5e1', fontSize: '0.85rem', margin: 0, lineHeight: 1.45 }}>
+              {fusion.crawl_error || 'Target site exceeded the maximum allowable redirect limit of 3 hops (possible redirect loop or geo/consent barrier).'}
+            </p>
+          </div>
+        </div>
+      )}
       {/* ── BOT_BLOCKED WAF / anti-bot notice banner ── */}
       {isBotBlocked && (
         <div
@@ -256,8 +320,8 @@ export default function RiskCards({ fusion, claims, webDetectionMode, webDetecti
             <Eye size={16} color="#60a5fa" />
           </div>
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#60a5fa', fontFamily: 'JetBrains Mono' }}>
-            {isUnverifiable || visualScore === null ? 'N/A' : visualScore}{' '}
-            {!isUnverifiable && visualScore !== null && <span style={{ fontSize: '0.9rem', color: '#64748b' }}>/ 100</span>}
+            {isAnyUnverifiable || visualScore === null ? 'N/A' : visualScore}{' '}
+            {!isAnyUnverifiable && visualScore !== null && <span style={{ fontSize: '0.9rem', color: '#64748b' }}>/ 100</span>}
           </div>
           <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.35rem' }}>
             ViT embeddings & Web candidate reuse
@@ -273,8 +337,8 @@ export default function RiskCards({ fusion, claims, webDetectionMode, webDetecti
             <FileText size={16} color="#34d399" />
           </div>
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#34d399', fontFamily: 'JetBrains Mono' }}>
-            {isUnverifiable || textScore === null ? 'N/A' : textScore}{' '}
-            {!isUnverifiable && textScore !== null && <span style={{ fontSize: '0.9rem', color: '#64748b' }}>/ 100</span>}
+            {isAnyUnverifiable || textScore === null ? 'N/A' : textScore}{' '}
+            {!isAnyUnverifiable && textScore !== null && <span style={{ fontSize: '0.9rem', color: '#64748b' }}>/ 100</span>}
           </div>
           <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.35rem' }}>
             Contact, policy & legal disclosures
@@ -290,7 +354,7 @@ export default function RiskCards({ fusion, claims, webDetectionMode, webDetecti
             <Activity size={16} color="#c084fc" />
           </div>
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#c084fc', fontFamily: 'JetBrains Mono' }}>
-            {fusion.identity_coherence !== undefined ? `${Math.round(fusion.identity_coherence * 100)}%` : '92%'}
+            {isAnyUnverifiable || fusion.identity_coherence == null ? 'N/A' : `${Math.round(fusion.identity_coherence * 100)}%`}
           </div>
           <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.35rem' }}>
             Cross-product visual style consistency
@@ -306,7 +370,7 @@ export default function RiskCards({ fusion, claims, webDetectionMode, webDetecti
             <ShieldCheck size={16} color="#38bdf8" />
           </div>
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#38bdf8', fontFamily: 'JetBrains Mono' }}>
-            {fusion.tampering_score !== undefined ? `${fusion.tampering_score}%` : 'Grade A'}
+            {isAnyUnverifiable || fusion.tampering_score == null ? 'N/A' : `${fusion.tampering_score}%`}
           </div>
           <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.35rem' }}>
             Error Level Analysis forensic rating

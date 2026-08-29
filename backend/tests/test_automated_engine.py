@@ -28,7 +28,6 @@ from services.verified_brand_resolver import resolve_verified_brand_logo
 from services.logo_detector import verify_merchant_logo
 from services.forensic_heatmap import run_forensic_tampering_analysis
 from services.visual_risk_scorer import calculate_visual_risk
-from services.web_image_search import search_image_web_detection, get_vision_client
 from api.job_manager import JobManager, get_job, get_job_report
 from fastapi.testclient import TestClient
 from main import app
@@ -193,10 +192,6 @@ class TestAsyncAPIEndpoints(unittest.TestCase):
 class TestWebSocketsAndModes(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
-
-    def test_demo_mode_badge_when_no_credentials(self):
-        client, mode = get_vision_client()
-        self.assertIn(mode, ["SIMULATED_DEMO_MODE", "LIVE_WEB_DETECTION"])
 
     def test_websocket_connection_and_streaming(self):
         # Create a test job

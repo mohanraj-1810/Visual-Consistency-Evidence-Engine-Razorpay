@@ -440,12 +440,153 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         progress_callback("crawl", "Crawling merchant website...")
 
     crawl_res = crawl_merchant(url)
+    domain_name = crawl_res.get("domain", url)
+    merchant_name = crawl_res.get("merchant_name") or crawl_res.get("domain", "Merchant")
+    crawl_ok = crawl_res.get("crawl_successful", False)
+    crawl_status = crawl_res.get("crawl_status", "SUCCESS")
 
+    # ── UNVERIFIABLE / CRAWL FAILURE SHORT-CIRCUIT ──────────────────────────
+    # If the website could not be crawled, do NOT call run_pipeline() with dummy placeholder images.
+    # Return an explicit UNVERIFIABLE result where all sub-scores are explicitly null/N/A.
+    if not crawl_ok:
+        if progress_callback:
+            progress_callback("crawl", "Analysis halted — site unreachable")
+
+        if crawl_status == "ROBOTS_DISALLOWED":
+            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (robots.txt restricts automated access)"
+            brand_claim = f"Brand identity claimed as {merchant_name} (automated extraction restricted by robots.txt)"
+            compliance_claim = f"Compliance policy: Merchant enforces robots.txt crawler access restrictions"
+        elif crawl_status == "BOT_BLOCKED":
+            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (site blocked automated access)"
+            brand_claim = f"Brand identity claimed as {merchant_name} (automated access blocked by anti-bot WAF)"
+            compliance_claim = f"Protection policy: Target site deploys active anti-bot protection (HTTP 403)"
+        elif crawl_status == "REDIRECT_LIMIT_EXCEEDED":
+            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (site exceeded maximum allowed redirect hops, possible redirect loop or geo/consent wall)"
+            brand_claim = f"Brand identity claimed as {merchant_name} (unverified — redirect limit exceeded)"
+            compliance_claim = f"Crawl diagnostic: redirect chain exceeded safety limit of 3 hops during automated SSRF-validated crawl"
+        else:
+            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (unreachable domain or connection error)"
+            brand_claim = f"Brand identity claimed as {merchant_name} (unverified — site unreachable)"
+            compliance_claim = f"Compliance unverifiable: {crawl_res.get('error', 'Crawl failed')}"
+
+        claims = {
+            "inventory_claim": inventory_claim,
+            "brand_claim": brand_claim,
+            "compliance_claim": compliance_claim,
+        }
+
+        text_risk_data = calculate_text_business_risk(crawl_res)
+        fused_result = fuse_risk_scores(
+            text_risk_data=text_risk_data,
+            visual_risk_data={},
+            reuse_data={},
+            logo_data={},
+            manipulation_data={},
+            merchant_name=merchant_name,
+            crawler_data=crawl_res,
+        )
+
+        claims_reasoning = synthesize_claims_reasoning(
+            claims=claims,
+            evidence_objects=[],
+            final_risk_score=None,
+            status=fused_result.get("status", "UNVERIFIABLE"),
+        )
+
+        visual_risk_data = {
+            "visual_risk_score": None,
+            "risk_level": "UNAVAILABLE",
+            "action": "MANUAL_REVIEW",
+            "breakdown": None,
+            "summary": f"Visual risk analysis suspended ({crawl_status}). No merchant visual assets were retrieved.",
+        }
+
+        identity_data = {
+            "coherence_score": None,
+            "coherence_pct": None,
+            "identity_dispersion_risk": None,
+            "risk_level": "UNAVAILABLE",
+            "pairwise_similarities": [],
+            "explanation": "No catalog visuals extracted for identity coherence analysis.",
+        }
+
+        logo_data = {
+            "similarity": None,
+            "consistency_score": None,
+            "inconsistency_risk": None,
+            "risk_level": "UNAVAILABLE",
+            "matched_reference": None,
+            "matched_path": None,
+            "explanation": "No brand logo extracted from merchant website.",
+        }
+
+        manip_data = {
+            "manipulation_score": None,
+            "risk_level": "UNAVAILABLE",
+            "synthetic_score": None,
+            "synthetic_desc": "N/A",
+            "suspicious_regions": [],
+            "explanation": "No images available for digital manipulation / ELA forensics.",
+        }
+
+        reuse_data = {
+            "max_similarity": None,
+            "reuse_risk_score": None,
+            "risk_level": "UNAVAILABLE",
+            "is_own_brand_candidate": True,
+            "match_status": "NO_DATA",
+            "top_flagged_item": None,
+            "findings": [],
+        }
+
+        provenance = get_analysis_provenance(
+            num_images=0,
+            num_candidates=0,
+            evidence_sources=[],
+            is_fallback_extractor=False,
+        )
+
+        unverifiable_response = {
+            "fusion": fused_result,
+            "text_risk": text_risk_data,
+            "visual_risk": visual_risk_data,
+            "reuse": reuse_data,
+            "identity": identity_data,
+            "logo": logo_data,
+            "manipulation": manip_data,
+            "claims": claims,
+            "crawler_data": crawl_res,
+            "weights": WEIGHTS,
+            "structured_evidence": [],
+            "claims_reasoning": claims_reasoning,
+            "provenance": provenance,
+            "candidate_evidence": [],
+            "forensic_target_image_base64": None,
+            "ela_image_base64": None,
+            "heatmap_overlay_base64": None,
+            "product_images_base64": [],
+            "logo_image_base64": None,
+            "document_image_base64": None,
+            "matched_reference_image_base64": None,
+            "matched_logo_reference_base64": None,
+            "image_processing_metrics": {
+                "total_raw_count": 0,
+                "filtered_count": 0,
+                "deduplicated_count": 0,
+                "clusters_count": 0,
+                "selected_representative_count": 0,
+            },
+            "extracted_products": [],
+            "web_detection_mode": web_detection_mode,
+            "web_detection_simulated": (web_detection_mode != "LIVE_SEARCH_SERPER"),
+        }
+        return sanitize_for_json(unverifiable_response)
+
+    # ── SUCCESSFUL CRAWL PIPELINE ───────────────────────────────────────────
     if progress_callback:
         progress_callback("extract", f"Extracted {len(crawl_res.get('image_objects', []))} raw images from website")
 
     image_objects = crawl_res.get("image_objects", [])
-    merchant_name = crawl_res.get("merchant_name") or crawl_res.get("domain", "Merchant")
 
     if progress_callback:
         progress_callback("prioritize", "Filtering useless/tiny/UI images & deduplicating...")
@@ -472,7 +613,7 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         if logo_res is not None:
             logo_image = logo_res[0]
 
-    # If no images extracted from site (e.g. text-only or heavily blocked), create placeholder
+    # If site is live but has no product images, create placeholder for analysis
     if not product_images:
         dummy_img = Image.new("RGB", (300, 300), (240, 243, 246))
         product_images = [dummy_img]
@@ -480,27 +621,11 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     if progress_callback:
         progress_callback("search", "Searching public online sources for visual candidate evidence...")
 
-    domain_name = crawl_res.get("domain", url)
-    crawl_ok = crawl_res.get("crawl_successful", False)
-    crawl_status = crawl_res.get("crawl_status", "SUCCESS")
     page_class = crawl_res.get("page_classification", {})
     site_cat = page_class.get("site_category", "GENERAL_WEBSITE")
 
-    # Dynamic, evidence-derived claim generation
-    if not crawl_ok:
-        if crawl_status == "ROBOTS_DISALLOWED":
-            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (robots.txt restricts automated access)"
-            brand_claim = f"Brand identity claimed as {merchant_name} (automated extraction restricted by robots.txt)"
-            compliance_claim = f"Compliance policy: Merchant enforces robots.txt crawler access restrictions"
-        elif crawl_status == "BOT_BLOCKED":
-            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (site blocked automated access)"
-            brand_claim = f"Brand identity claimed as {merchant_name} (automated access blocked by anti-bot WAF)"
-            compliance_claim = f"Protection policy: Target site deploys active anti-bot protection (HTTP 403)"
-        else:
-            inventory_claim = f"Website content from {domain_name} — could not retrieve catalog (unreachable domain or connection error)"
-            brand_claim = f"Brand identity claimed as {merchant_name} (unverified — site unreachable)"
-            compliance_claim = f"Compliance unverifiable: {crawl_res.get('error', 'Crawl failed')}"
-    elif site_cat == "ECOMMERCE":
+    # Dynamic, evidence-derived claim generation for live sites
+    if site_cat == "ECOMMERCE":
         num_p = len(crawl_res.get("products", []))
         p_str = f" ({num_p} product listings discovered)" if num_p > 0 else ""
         inventory_claim = f"E-commerce product catalog from {domain_name}{p_str}"
@@ -573,30 +698,43 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
 
 
 
+from fastapi import APIRouter, Form, HTTPException, Query, Request
+
 @router.post("/analyze")
 async def analyze_merchant_post(
-    request: Optional[AnalyzeRequest] = None,
-    target_url: Optional[str] = Form(None),
-    mode: Optional[str] = Form(None),
-    demo_case: Optional[str] = Form(None),
+    raw_request: Request,
 ):
     """
     Main multimodal analysis endpoint.
-    Accepts JSON body `{"url": "https://example.com"}` or Form field `target_url`.
+    Accepts JSON body `{"url": "https://example.com"}` or Form field `target_url`/`url`.
     """
     url = None
-    if request and request.url:
-        url = request.url.strip()
-    elif target_url:
-        url = target_url.strip()
+    content_type = raw_request.headers.get("content-type", "")
 
-    # BUG-001 FIX: Validate URL instead of silently falling back to example.com.
-    # An empty or missing URL must return a clear 422 validation error.
+    if "application/json" in content_type:
+        try:
+            body = await raw_request.json()
+            if isinstance(body, dict):
+                url = body.get("url") or body.get("target_url")
+        except Exception:
+            pass
+    else:
+        try:
+            form = await raw_request.form()
+            url = form.get("url") or form.get("target_url")
+        except Exception:
+            pass
+
     if not url:
+        url = raw_request.query_params.get("url") or raw_request.query_params.get("target_url")
+
+    if not url or not str(url).strip():
         raise HTTPException(
             status_code=422,
-            detail="A valid merchant URL is required. Please provide a 'url' field in the JSON body or 'target_url' form field.",
+            detail="A valid merchant URL is required. Please provide a 'url' field in the JSON body or form data.",
         )
+
+    url = str(url).strip()
 
     try:
         res = execute_website_analysis(url)
@@ -668,21 +806,38 @@ async def analyze_stream(url: str = Query(..., description="Merchant website URL
 
         # Analysis finished — send completion for all steps
         if result_holder["error"] is None:
-            completion_steps = [
-                ("crawl", "Website crawled"),
-                ("extract", "Images extracted"),
-                ("prioritize", "Important images identified"),
-                ("search", "Online evidence searched"),
-                ("candidates", "Candidate images collected"),
-                ("vit", "ViT verification completed"),
-                ("logo", "Logo checked"),
-                ("reuse", "Image reuse checked"),
-                ("manipulation", "Manipulation checked"),
-                ("identity", "Identity checked"),
-                ("fusion", "Risk fusion completed"),
-            ]
-            for step_id, label in completion_steps:
-                yield f"data: {safe_json_dumps({'type': 'step', 'step': step_id, 'label': label, 'status': 'completed'})}\n\n"
+            res_obj = result_holder["result"] or {}
+            crawl_data = res_obj.get("crawler_data", {})
+            crawl_ok = crawl_data.get("crawl_successful", True)
+
+            if not crawl_ok:
+                crawl_status = crawl_data.get("crawl_status", "UNREACHABLE")
+                halt_msg = (
+                    "Analysis halted — redirect limit exceeded"
+                    if crawl_status == "REDIRECT_LIMIT_EXCEEDED"
+                    else "Analysis halted — robots.txt restricted"
+                    if crawl_status == "ROBOTS_DISALLOWED"
+                    else "Analysis halted — anti-bot WAF protected (HTTP 403)"
+                    if crawl_status == "BOT_BLOCKED"
+                    else "Analysis halted — site unreachable"
+                )
+                yield f"data: {safe_json_dumps({'type': 'step', 'step': 'crawl', 'label': halt_msg, 'status': 'completed', 'message': halt_msg})}\n\n"
+            else:
+                completion_steps = [
+                    ("crawl", "Website crawled"),
+                    ("extract", "Images extracted"),
+                    ("prioritize", "Important images identified"),
+                    ("search", "Online evidence searched"),
+                    ("candidates", "Candidate images collected"),
+                    ("vit", "ViT verification completed"),
+                    ("logo", "Logo checked"),
+                    ("reuse", "Image reuse checked"),
+                    ("manipulation", "Manipulation checked"),
+                    ("identity", "Identity checked"),
+                    ("fusion", "Risk fusion completed"),
+                ]
+                for step_id, label in completion_steps:
+                    yield f"data: {safe_json_dumps({'type': 'step', 'step': step_id, 'label': label, 'status': 'completed'})}\n\n"
 
             # Final result payload (guaranteed JSON-serializable)
             yield f"data: {safe_json_dumps({'type': 'result', 'data': result_holder['result']})}\n\n"

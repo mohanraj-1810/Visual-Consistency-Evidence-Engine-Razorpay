@@ -10,15 +10,8 @@ import uuid
 import time
 import asyncio
 from typing import Dict, List, Optional, Any, Callable
-from PIL import Image
 
-from crawler.site_crawler import crawl_merchant
-from crawler.image_extractor import process_and_prioritize_images
-from services.web_image_search import get_vision_client, batch_search_images
-from services.evidence_fusion import fuse_asset_evidence, index_analyzed_assets
-from services.logo_detector import verify_merchant_logo
-from services.forensic_heatmap import run_forensic_tampering_analysis
-from services.visual_risk_scorer import calculate_visual_risk
+from routes.analyze import execute_website_analysis
 
 
 # Thread-safe in-memory store for analysis jobs and reports
@@ -125,174 +118,63 @@ class JobManager:
 
             merchant_id = job["merchant_id"]
             url = job["website_url"]
-            claimed_brand = job["claimed_brand"]
+
+            loop = asyncio.get_running_loop()
+
+            def progress_callback(step_id: str, message: str):
+                status_map = {
+                    "crawl": "CRAWLING",
+                    "extract": "EXTRACTING_IMAGES",
+                    "prioritize": "EXTRACTING_IMAGES",
+                    "search": "SEARCHING_WEB",
+                    "candidates": "SEARCHING_WEB",
+                    "vit": "SEARCHING_WEB",
+                    "logo": "ANALYSING_FORENSICS",
+                    "reuse": "ANALYSING_FORENSICS",
+                    "manipulation": "ANALYSING_FORENSICS",
+                    "identity": "ANALYSING_FORENSICS",
+                    "fusion": "SCORING",
+                }
+                status = status_map.get(step_id, step_id.upper())
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        JobManager._emit_event(job_id, status, message),
+                        loop,
+                    )
+                except Exception:
+                    pass
 
             try:
-                # ── Step 1: CRAWLING ──
                 await JobManager._emit_event(job_id, "CRAWLING", f"Crawling merchant website: {url}")
-                loop = asyncio.get_running_loop()
-                crawl_data = await loop.run_in_executor(None, crawl_merchant, url, 5)
-
-                if crawl_data.get("blocked"):
-                    raise ValueError(f"Crawling blocked by security policy: {crawl_data.get('error')}")
-
-                merchant_domain = crawl_data.get("domain", "")
-
-                # ── Step 2: EXTRACTING_IMAGES ──
-                await JobManager._emit_event(job_id, "EXTRACTING_IMAGES", "Extracting, classifying, and prioritizing visual assets...")
-                img_objects = crawl_data.get("image_objects", [])
-                merchant_name = claimed_brand or crawl_data.get("merchant_name") or "Merchant"
-
-                proc_data = await loop.run_in_executor(
+                analysis_result = await loop.run_in_executor(
                     None,
-                    process_and_prioritize_images,
-                    img_objects,
-                    merchant_name,
-                    8,
+                    execute_website_analysis,
+                    url,
+                    progress_callback,
                 )
 
-                rep_images = proc_data.get("representative_images", [])
-                num_extracted = len(rep_images)
-                await JobManager._emit_event(job_id, "EXTRACTING_IMAGES", f"Extracted {num_extracted} representative images.")
+                # Attach job metadata to final report payload
+                analysis_result["job_id"] = job_id
+                analysis_result["merchant_id"] = merchant_id
+                analysis_result["website_url"] = url
 
-                # ── Step 3: SEARCHING_WEB & DUAL EVIDENCE FUSION ──
-                await JobManager._emit_event(job_id, "SEARCHING_WEB", "Searching web matches & querying local ViT platform index...")
-                vision_client, analysis_mode = get_vision_client()
+                job["report"] = analysis_result
 
-                batch_results = await batch_search_images(
-                    rep_images,
-                    client=vision_client,
-                    mode=analysis_mode,
-                )
+                fusion = analysis_result.get("fusion", {})
+                risk_score = fusion.get("final_risk_score")
+                status_label = fusion.get("status_label", fusion.get("status", "COMPLETED"))
 
-                # Fuse evidence for each asset (Google Vision + local ViT cross-merchant)
-                evidence_list: List[Dict[str, Any]] = []
-                for b in batch_results:
-                    meta = b.get("meta", {})
-                    img = b.get("image")
-                    web_res = b.get("web_detection", {})
-                    fused_item = fuse_asset_evidence(
-                        asset_image=img,
-                        meta=meta,
-                        web_detection_result=web_res,
-                        current_merchant_id=merchant_id,
-                        current_domain=merchant_domain,
-                    )
-                    evidence_list.append(fused_item)
-
-                # ── Step 4: ANALYSING_FORENSICS & LOGO ──
-                await JobManager._emit_event(job_id, "ANALYSING_FORENSICS", "Analysing logo consistency and digital tampering...")
-                
-                # Extract any detected brand logos from Vision annotations
-                detected_logos_list = []
-                for b in batch_results:
-                    w_res = b.get("web_detection", {})
-                    if isinstance(w_res, dict) and w_res.get("logos"):
-                        detected_logos_list.extend(w_res.get("logos", []))
-
-                # Check logo
-                logo_img = proc_data.get("logo_image")
-                logo_url = crawl_data.get("logo_url")
-                brand_status, logo_evidence = verify_merchant_logo(
-                    logo_img,
-                    logo_url,
-                    claimed_brand,
-                    detected_logos=detected_logos_list if detected_logos_list else None,
-                )
-                if logo_evidence:
-                    # Append default provenance fields to logo evidence
-                    logo_evidence.setdefault("google_web_match_score", 0)
-                    logo_evidence.setdefault("local_vit_similarity_score", logo_evidence.get("score", 0))
-                    logo_evidence.setdefault("google_vision_provider_result", "none")
-                    logo_evidence.setdefault("vit_cosine_similarity", 0.0)
-                    logo_evidence.setdefault("matched_domains", [])
-                    logo_evidence.setdefault("matched_merchant_ids", [])
-                    logo_evidence.setdefault("masked_merchant_ids", [])
-                    logo_evidence.setdefault("evidence_source", "LOCAL_INDEX")
-                    logo_evidence.setdefault("corroborated", False)
-                    logo_evidence.setdefault("confidence", "HIGH" if brand_status == "VERIFIED" else "LOW")
-                    logo_evidence.setdefault("asset_evidence_level", "POTENTIAL_REUSE" if logo_evidence.get("score", 0) > 40 else "LOW_EVIDENCE")
-                    evidence_list.append(logo_evidence)
-
-                # Check certificates / tampering
-                cert_images = proc_data.get("certificate_images", [])
-                if cert_images:
-                    for idx, c_img in enumerate(cert_images[:2]):
-                        score, manip_evidence = run_forensic_tampering_analysis(c_img, f"certificate_{idx+1}", "certificate")
-                        if manip_evidence and score > 0:
-                            manip_evidence.setdefault("google_web_match_score", 0)
-                            manip_evidence.setdefault("local_vit_similarity_score", 0)
-                            manip_evidence.setdefault("google_vision_provider_result", "none")
-                            manip_evidence.setdefault("vit_cosine_similarity", 0.0)
-                            manip_evidence.setdefault("matched_domains", [])
-                            manip_evidence.setdefault("matched_merchant_ids", [])
-                            manip_evidence.setdefault("masked_merchant_ids", [])
-                            manip_evidence.setdefault("evidence_source", "LOCAL_INDEX")
-                            manip_evidence.setdefault("corroborated", False)
-                            manip_evidence.setdefault("confidence", "HIGH" if score >= 50 else "MEDIUM")
-                            manip_evidence.setdefault("asset_evidence_level", "POTENTIAL_REUSE" if score >= 35 else "LOW_EVIDENCE")
-                            evidence_list.append(manip_evidence)
-
-                # ── Step 5: SCORING & FUSION ──
-                await JobManager._emit_event(job_id, "SCORING", "Calculating visual risk score and safety recommendations...")
-                visual_risk_score, risk_level, recommended_action = calculate_visual_risk(
-                    evidence_list,
-                    brand_verification_status=brand_status,
-                )
-
-                # ── Step 6: COMPLETED (Report Construction) ──
-                clean_evidence = []
-                for e in evidence_list:
-                    clean_evidence.append({
-                        "asset_url": e.get("asset_url", ""),
-                        "asset_type": e.get("asset_type", "product_image"),
-                        "signal_type": e.get("signal_type", "external_image_reuse"),
-                        "score": e.get("score", 0),
-                        "google_web_match_score": e.get("google_web_match_score", 0),
-                        "local_vit_similarity_score": e.get("local_vit_similarity_score", 0),
-                        "google_vision_provider_result": e.get("google_vision_provider_result", "none"),
-                        "vit_cosine_similarity": e.get("vit_cosine_similarity", 0.0),
-                        "matched_domains": e.get("matched_domains", []),
-                        "matched_merchant_ids": e.get("matched_merchant_ids", []),
-                        "masked_merchant_ids": e.get("masked_merchant_ids", []),
-                        "evidence_source": e.get("evidence_source", "FUSED"),
-                        "corroborated": e.get("corroborated", False),
-                        "confidence": e.get("confidence", "LOW"),
-                        "asset_evidence_level": e.get("asset_evidence_level", "LOW_EVIDENCE"),
-                        "matched_pages": e.get("matched_pages", []),
-                        "matched_images": e.get("matched_images", []),
-                        "explanation": e.get("explanation", ""),
-                        "heatmap_url": e.get("heatmap_url"),
-                    })
-
-                final_report = {
-                    "job_id": job_id,
-                    "merchant_id": merchant_id,
-                    "website_url": url,
-                    "images_scanned": num_extracted,
-                    "visual_risk_score": visual_risk_score,
-                    "risk_level": risk_level,
-                    "recommended_action": recommended_action,
-                    "brand_verification_status": brand_status,
-                    "analysis_mode": analysis_mode,
-                    "evidence": clean_evidence,
-                }
-
-                job["report"] = final_report
-
-                # ── Step 7: Post-Analysis ViT Indexing ──
-                # Strictly index newly scanned assets AFTER report generation
-                index_analyzed_assets(
-                    assets_with_images=rep_images,
-                    merchant_id=merchant_id,
-                    domain=merchant_domain,
+                score_msg = (
+                    f"Risk score completed: {risk_score}/100 ({status_label})"
+                    if risk_score is not None
+                    else f"Analysis completed: {status_label}"
                 )
 
                 await JobManager._emit_event(
                     job_id,
                     "COMPLETED",
-                    f"Risk score completed: {visual_risk_score}/100 ({risk_level} — {recommended_action})",
-                    data=final_report,
+                    score_msg,
+                    data=analysis_result,
                 )
 
             except Exception as e:

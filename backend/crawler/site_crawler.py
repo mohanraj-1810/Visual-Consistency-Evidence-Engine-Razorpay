@@ -60,13 +60,22 @@ class SafeRedirectSession(requests.Session):
     def __init__(self, max_redirects: int = _MAX_REDIRECTS):
         super().__init__()
         self.max_redirect_count = max_redirects
+        self.last_redirect_chain: List[Dict[str, Any]] = []
 
     def resolve_redirects(self, resp, req, stream=False, timeout=None, verify=True, cert=None, proxies=None, yield_requests=False, **adapter_kwargs):
+        self.last_redirect_chain = [{"url": resp.url, "status_code": getattr(resp, "status_code", 302)}]
         redirect_count = 0
         for redirect_req in super().resolve_redirects(resp, req, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies, yield_requests=True, **adapter_kwargs):
             redirect_count += 1
+            self.last_redirect_chain.append({"url": redirect_req.url, "status_code": None})
+            
             if redirect_count > self.max_redirect_count:
-                raise requests.exceptions.TooManyRedirects(f"Exceeded maximum allowed redirects ({self.max_redirect_count}).")
+                chain_str = " -> ".join([f"{hop['url']} (status: {hop.get('status_code', 'redirect')})" for hop in self.last_redirect_chain])
+                logger.warning("[crawler] Redirect limit exceeded (%d hops): %s", redirect_count, chain_str)
+                print(f"[CRAWLER_REDIRECT_LIMIT] Redirect limit exceeded ({redirect_count} hops). Redirect chain: {chain_str}")
+                raise requests.exceptions.TooManyRedirects(
+                    f"Exceeded maximum allowed redirects ({self.max_redirect_count}). Chain: {chain_str}"
+                )
             
             is_valid, ip_addr, err_msg = validate_url_security(redirect_req.url)
             if not is_valid:
@@ -76,6 +85,8 @@ class SafeRedirectSession(requests.Session):
                 yield redirect_req
             else:
                 resp = self.send(redirect_req, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies, **adapter_kwargs)
+                if self.last_redirect_chain and self.last_redirect_chain[-1]["url"] == redirect_req.url:
+                    self.last_redirect_chain[-1]["status_code"] = getattr(resp, "status_code", None)
                 yield resp
 
 
@@ -447,6 +458,15 @@ def crawl_merchant(url: str, max_pages: int = _MAX_PAGES) -> Dict[str, Any]:
                     root_error = f"HTTP {status_code} error returned by {domain}."
                     root_error_type = f"HTTP_{status_code}" if status_code else "HTTP_ERROR"
             logger.warning("[crawler] HTTP error on %s: %s", curr_url, e)
+            continue
+        except requests.exceptions.TooManyRedirects as e:
+            chain_details = getattr(session, "last_redirect_chain", [])
+            chain_str = " -> ".join([f"{hop['url']} (status: {hop.get('status_code', 'redirect')})" for hop in chain_details]) if chain_details else str(e)
+            logger.warning("[crawler] TooManyRedirects on %s. Redirect chain: %s", curr_url, chain_str)
+            print(f"[CRAWLER_REDIRECT_LIMIT] TooManyRedirects on {curr_url}. Chain: {chain_str}")
+            if curr_url == url or not pages_crawled:
+                root_error = f"Redirect limit exceeded on {domain}: exceeded safety limit of {_MAX_REDIRECTS} hops ({chain_str})."
+                root_error_type = "REDIRECT_LIMIT_EXCEEDED"
             continue
         except Exception as e:
             if curr_url == url or not pages_crawled:
