@@ -220,6 +220,102 @@ class TestEvidenceFusion(unittest.TestCase):
         )
         self.assertEqual(len(matches_same_hash), 0, "Current asset hash must be excluded from matches.")
 
+    def test_cross_merchant_reuse_propagates_to_all_scores_and_tabs(self):
+        """
+        Regression test for minnacouture reuse cluster bug:
+        When a merchant image matches a previously-scanned merchant in local ViT index:
+        1. final_risk_score is non-null and elevated (>= 40.0).
+        2. reuse max_similarity and reuse_risk_score reflect the match (>= 0.85, score >= 70).
+        3. Evidence Fusion ('evidence') and Candidate Match ('candidate_evidence') share the same underlying match.
+        4. fusion reasons explicitly mention reuse.
+        5. recommendation is NOT 'Standard Flow'.
+        6. sub-scores identity_coherence and tampering_score are populated.
+        """
+        from routes.analyze import run_pipeline
+        from visual.vit_embeddings import get_image_embedding
+
+        # 1. Seed a reference asset from a prior merchant in the ViT index
+        seeded_img = Image.new("RGB", (150, 150), (200, 50, 50))
+        seeded_emb = get_image_embedding(seeded_img)
+        _LOCAL_VIT_INDEX["hash_prior_mch_001"] = {
+            "embedding": seeded_emb,
+            "merchant_id": "mch_prior_001",
+            "domain": "prior-store.com",
+            "asset_url": "https://prior-store.com/products/jacket.jpg",
+            "asset_type": "product_image",
+            "timestamp": 12345678.0,
+        }
+
+        # 2. Analyze new merchant with the identical asset
+        new_merchant_img = Image.new("RGB", (150, 150), (200, 50, 50))
+        crawl_mock = {
+            "crawl_successful": True,
+            "crawl_status": "SUCCESS",
+            "domain": "new-boutique.com",
+            "merchant_name": "New Boutique",
+            "merchant_id": "mch_new_002",
+            "has_contact": True,
+            "has_policy": True,
+            "has_pricing": True,
+            "has_about": True,
+            "social_links": ["https://instagram.com/boutique"],
+            "products": [],
+            "error": None,
+        }
+
+        claims = {
+            "inventory_claim": "E-commerce product catalog from new-boutique.com",
+            "brand_claim": "Brand identity claimed as New Boutique",
+            "compliance_claim": "Website disclosures: Contact Present, Policy Present, About Present",
+        }
+
+        res = run_pipeline(
+            merchant_name="New Boutique",
+            product_images=[new_merchant_img],
+            logo_image=None,
+            document_image=None,
+            claimed_brand="New Boutique",
+            claims=claims,
+            crawler_data=crawl_mock,
+            prefer_online_discovery=True,
+        )
+
+        fusion = res["fusion"]
+        reuse = res["reuse"]
+        evidence = res.get("evidence", [])
+        candidates = res.get("candidate_evidence", [])
+
+        # 1. final_risk_score is non-null and elevated
+        self.assertIsNotNone(fusion.get("final_risk_score"))
+        self.assertGreaterEqual(fusion["final_risk_score"], 40.0)
+        self.assertIn(fusion["status"], ("MEDIUM", "HIGH"))
+
+        # 2. image_reuse_index is non-null and reflects the match
+        self.assertGreaterEqual(reuse["max_similarity"], 0.85)
+        self.assertGreaterEqual(reuse["reuse_risk_score"], 70.0)
+        self.assertEqual(reuse["risk_level"], "HIGH")
+
+        # 3. Evidence Fusion and Candidate Visual Match tabs share the same underlying match
+        self.assertGreater(len(evidence), 0)
+        self.assertGreater(len(candidates), 0)
+        # Verify both trace to the platform ViT match
+        self.assertTrue(any(e.get("local_vit_similarity_score", 0) >= 85 for e in evidence))
+        self.assertTrue(any(c.get("similarity", 0) >= 0.85 for c in candidates))
+
+        # 4. Reasons mention reuse specifically
+        reasons_text = " ".join(fusion.get("reasons", []))
+        self.assertTrue("similarity" in reasons_text.lower() or "matches" in reasons_text.lower() or "reuse" in reasons_text.lower())
+
+        # 5. Recommendation is NOT "Standard Flow"
+        self.assertNotIn("Standard merchant onboarding flow", fusion.get("recommendation", ""))
+
+        # 6. Sub-scores are populated
+        self.assertIsNotNone(fusion.get("identity_coherence"))
+        self.assertIsNotNone(fusion.get("tampering_score"))
+        self.assertIsNotNone(fusion.get("visual_risk_score"))
+        self.assertIsNotNone(fusion.get("text_risk_score"))
+
 
 if __name__ == "__main__":
     unittest.main()
+

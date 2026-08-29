@@ -98,6 +98,7 @@ def fuse_risk_scores(
     reuse_data: Dict[str, Any],
     logo_data: Dict[str, Any],
     manipulation_data: Dict[str, Any],
+    identity_data: Optional[Dict[str, Any]] = None,
     merchant_name: str = "Merchant",
     crawler_data: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -270,11 +271,13 @@ def fuse_risk_scores(
     # 1. External Match / Image reuse explanation
     max_sim = reuse_data.get("max_similarity", reuse_data.get("similarity", 0.0))
     top_cand = reuse_data.get("top_flagged_item") or reuse_data.get("top_candidate") or {}
-    ref_source = top_cand.get("source_domain") or top_cand.get("reference_filename") or "external web source"
+    masked_mchs = top_cand.get("masked_merchant_ids") or []
+    mch_str = ", ".join(masked_mchs) if masked_mchs else None
+    ref_source = mch_str or top_cand.get("source_domain") or top_cand.get("reference_filename") or "external web source"
     is_own_brand = reuse_data.get("is_own_brand_candidate", False)
 
     if max_sim >= 0.85 and not is_own_brand:
-        reasons.append(f"Product imagery strongly matches external candidate visual ({int(round(max_sim * 100))}% ViT similarity with {ref_source}) — Potential Visual Misrepresentation.")
+        reasons.append(f"Product imagery strongly matches candidate visual ({int(round(max_sim * 100))}% ViT similarity with {ref_source}) — Potential Visual Misrepresentation.")
     elif max_sim >= 0.70 and not is_own_brand:
         reasons.append(f"Product imagery exhibits moderate visual similarity ({int(round(max_sim * 100))}%) to candidate on {ref_source}.")
     elif is_own_brand:
@@ -300,6 +303,11 @@ def fuse_risk_scores(
     if synth_score >= 60.0:
         reasons.append(f"Elevated synthetic/AI-generation markers observed in product imagery ({synth_score}% suspicion — supporting signal only).")
 
+    # 5. Identity coherence explanation
+    coherence_val = identity_data.get("coherence_score", 70.0) if identity_data else 70.0
+    if coherence_val < 35.0:
+        reasons.append(f"Merchant's product visuals display low internal style coherence ({int(round(coherence_val))}% consistency — images may originate from disconnected external catalogs).")
+
     # If no major flags
     if not reasons or (len(reasons) == 1 and is_own_brand):
         reasons.append("Visual evidence is internally consistent and matches claimed merchant branding.")
@@ -309,6 +317,8 @@ def fuse_risk_scores(
         "final_risk_score": final_score,
         "text_risk_score": text_score,
         "visual_risk_score": visual_score,
+        "identity_coherence": round(float(coherence_val), 1),
+        "tampering_score": round(float(manip_score), 1),
         "status": status,
         "status_label": status_label,
         "recommendation": recommendation,

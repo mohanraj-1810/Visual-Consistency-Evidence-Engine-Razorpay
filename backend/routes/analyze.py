@@ -178,9 +178,13 @@ def run_pipeline(
     # 2. Text / Business Baseline Risk
     text_risk_data = calculate_text_business_risk(crawler_data)
 
-    # 3. Online Candidate Visual Evidence Discovery & ViT Verification
+    # 3. Online Candidate Visual Evidence Discovery & Local Platform ViT Index Fusion
+    from services.evidence_fusion import fuse_asset_evidence, query_local_vit_index, index_analyzed_assets
+
     primary_img = product_images[0] if product_images else None
-    
+    merchant_domain = crawler_data.get("domain") if crawler_data else None
+    merchant_id = crawler_data.get("merchant_id") if crawler_data else f"mch_{merchant_name.lower()[:8]}"
+
     # Formulate search hint
     query_hint = None
     if search_hints and len(search_hints) > 0:
@@ -188,7 +192,7 @@ def run_pipeline(
     elif primary_img:
         query_hint = f"{claimed_brand or merchant_name} product photo"
 
-    # Search online candidate visuals (no local reference fallback in production)
+    # Search online candidate visuals
     candidate_evidence = discover_candidate_evidence(
         merchant_image=primary_img,
         query_hint=query_hint,
@@ -196,8 +200,7 @@ def run_pipeline(
         max_candidates=5,
     )
 
-    # ViT similarity verification on discovered candidates
-    merchant_domain = crawler_data.get("domain") if crawler_data else None
+    # ViT similarity verification on discovered online candidates
     if primary_img and candidate_evidence:
         verified_candidates_res = verify_candidates_with_vit(
             primary_img, candidate_evidence, merchant_domain=merchant_domain
@@ -214,21 +217,76 @@ def run_pipeline(
             "explanation": "No external visual matches found online (Own-Brand / Unique Content).",
         }
 
-    # Format reuse data object
+    # Format base online reuse data
     top_online_cand = verified_candidates_res.get("top_candidate")
     is_own_brand = verified_candidates_res.get("is_own_brand_candidate", True)
-    max_sim = verified_candidates_res.get("max_similarity", 0.0)
+    max_sim = float(verified_candidates_res.get("max_similarity", 0.0))
 
-    if top_online_cand and not is_own_brand:
+    # Evaluate Dual Evidence Fusion (Online Web + Local Platform ViT Index) across all extracted visuals
+    evidence_list: List[Dict[str, Any]] = []
+    highest_local_vit_sim = 0.0
+    top_local_vit_item = None
+    cross_merchant_candidate_matches = []
+
+    all_eval_assets = []
+    for idx, p_img in enumerate(product_images):
+        all_eval_assets.append((p_img, {
+            "src": f"https://{merchant_domain or 'merchant.com'}/products/asset_{idx+1}.jpg",
+            "asset_type": "product_image",
+            "sha256": f"hash_{merchant_name.lower()[:6]}_p{idx+1}",
+        }))
+    if logo_image is not None:
+        all_eval_assets.append((logo_image, {
+            "src": crawler_data.get("logo_url") or f"https://{merchant_domain or 'merchant.com'}/assets/logo.png",
+            "asset_type": "logo",
+            "sha256": f"hash_{merchant_name.lower()[:6]}_logo",
+        }))
+
+    for img_obj, meta in all_eval_assets:
+        fused_item = fuse_asset_evidence(
+            asset_image=img_obj,
+            meta=meta,
+            web_detection_result={},
+            current_merchant_id=merchant_id,
+            current_domain=merchant_domain,
+        )
+        evidence_list.append(fused_item)
+
+        vit_sim = float(fused_item.get("vit_cosine_similarity", 0.0))
+        if vit_sim > highest_local_vit_sim:
+            highest_local_vit_sim = vit_sim
+            top_local_vit_item = fused_item
+
+        # If platform match found, create candidate entry for Candidate Match tab
+        if vit_sim >= 0.70:
+            mch_labels = fused_item.get("masked_merchant_ids", [])
+            mch_domain = fused_item.get("matched_domains", ["platform-merchant.internal"])[0] if fused_item.get("matched_domains") else "platform-merchant.internal"
+            cross_merchant_candidate_matches.append({
+                "candidate_id": f"platform_vit_{len(cross_merchant_candidate_matches)+1}",
+                "similarity": vit_sim,
+                "similarity_pct": int(round(vit_sim * 100)),
+                "severity": "HIGH" if vit_sim >= 0.85 else "MEDIUM",
+                "source_type": "PLATFORM_VIT",
+                "source_url": fused_item.get("asset_url"),
+                "source_domain": mch_domain,
+                "title": f"Previously-scanned merchant ({', '.join(mch_labels) if mch_labels else 'platform index'})",
+                "evidence_strength": "HIGH" if vit_sim >= 0.85 else "MEDIUM",
+                "match_label": "Platform ViT Match",
+                "explanation": f"Visual asset matches previously scanned merchant ({', '.join(mch_labels) if mch_labels else 'platform catalog'}) with {int(round(vit_sim * 100))}% ViT similarity.",
+            })
+
+    # Unify max similarity across Online Candidates and Local Platform ViT Index
+    if highest_local_vit_sim > max_sim:
+        max_sim = highest_local_vit_sim
+        is_own_brand = False
+
+    if not is_own_brand and max_sim >= 0.70:
         if max_sim >= 0.85:
             reuse_score = min(100.0, 75.0 + (max_sim - 0.85) / 0.15 * 25.0)
             reuse_risk_level = "HIGH"
-        elif max_sim >= 0.70:
+        else:
             reuse_score = 40.0 + (max_sim - 0.70) / 0.15 * 35.0
             reuse_risk_level = "MEDIUM"
-        else:
-            reuse_score = 0.0
-            reuse_risk_level = "LOW"
     else:
         reuse_score = 0.0
         reuse_risk_level = "LOW"
@@ -249,9 +307,22 @@ def run_pipeline(
                 except Exception:
                     pass
 
-    # Build clean JSON serializable candidate objects (strip raw PIL Image)
+    # Build clean top flagged item from best available match
     clean_top_flagged = None
-    if top_online_cand:
+    if top_local_vit_item and highest_local_vit_sim >= max_sim and highest_local_vit_sim >= 0.70:
+        mch_str = ", ".join(top_local_vit_item.get("masked_merchant_ids", [])) or "platform merchants"
+        clean_top_flagged = {
+            "similarity": float(highest_local_vit_sim),
+            "similarity_pct": int(round(highest_local_vit_sim * 100)),
+            "risk_level": reuse_risk_level,
+            "explanation": f"Visual asset matches previously scanned merchant ({mch_str}) with {int(round(highest_local_vit_sim * 100))}% ViT similarity.",
+            "source_type": "LOCAL_INDEX",
+            "source_url": top_local_vit_item.get("asset_url"),
+            "source_domain": top_local_vit_item.get("matched_domains", ["platform-merchants"])[0] if top_local_vit_item.get("matched_domains") else "platform-catalog.internal",
+            "matched_merchant_ids": top_local_vit_item.get("matched_merchant_ids", []),
+            "masked_merchant_ids": top_local_vit_item.get("masked_merchant_ids", []),
+        }
+    elif top_online_cand:
         clean_top_flagged = {
             k: v for k, v in top_online_cand.items() if k != "image"
         }
@@ -270,13 +341,20 @@ def run_pipeline(
         {k: v for k, v in c.items() if k != "image"}
         for c in verified_candidates_res.get("all_candidates", [])
     ]
+    clean_findings.extend(cross_merchant_candidate_matches)
+
+    match_status_val = (
+        "CROSS_MERCHANT_REUSE"
+        if highest_local_vit_sim >= 0.70 and highest_local_vit_sim >= max_sim
+        else verified_candidates_res.get("match_status", "NO_EXTERNAL_MATCH")
+    )
 
     reuse_data = {
         "max_similarity": float(max_sim),
         "reuse_risk_score": round(float(reuse_score), 1),
         "risk_level": reuse_risk_level,
         "is_own_brand_candidate": is_own_brand,
-        "match_status": verified_candidates_res.get("match_status", "NO_EXTERNAL_MATCH"),
+        "match_status": match_status_val,
         "top_flagged_item": clean_top_flagged,
         "findings": clean_findings,
     }
@@ -337,6 +415,7 @@ def run_pipeline(
         reuse_data=reuse_data,
         logo_data=logo_data,
         manipulation_data=manip_data,
+        identity_data=identity_data,
         merchant_name=merchant_name,
         crawler_data=crawler_data,
     )
@@ -362,7 +441,7 @@ def run_pipeline(
     model_info = get_model_status()
     provenance = get_analysis_provenance(
         num_images=len(product_images) + (1 if logo_image else 0) + (1 if document_image else 0),
-        num_candidates=len(candidate_evidence),
+        num_candidates=len(candidate_evidence) + len(cross_merchant_candidate_matches),
         evidence_sources=evidence_src_types,
         is_fallback_extractor=model_info.get("is_fallback", False),
     )
@@ -395,6 +474,7 @@ def run_pipeline(
             "evidence_strength": c.get("evidence_strength"),
             "match_label": c.get("match_label", "Potential External Match"),
         })
+    clean_candidates_list.extend(cross_merchant_candidate_matches)
 
     raw_response = {
         "fusion": fused_result,
@@ -411,6 +491,7 @@ def run_pipeline(
         "claims_reasoning": claims_reasoning,
         "provenance": provenance,
         "candidate_evidence": clean_candidates_list,
+        "evidence": evidence_list,
         # Base64 Visual Artifacts
         "forensic_target_image_base64": image_to_base64(target_forensic_img),
         "ela_image_base64": image_to_base64(ela_np),
@@ -693,6 +774,18 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     # Surface online search provider mode
     result["web_detection_mode"] = web_detection_mode
     result["web_detection_simulated"] = (web_detection_mode != "LIVE_SEARCH_SERPER")
+
+    # Post-Analysis ViT Indexing (strictly after report generation)
+    try:
+        from services.evidence_fusion import index_analyzed_assets
+        merchant_id = crawl_res.get("merchant_id") or f"mch_{merchant_name.lower()[:8]}"
+        index_analyzed_assets(
+            assets_with_images=proc_res["representative_images"],
+            merchant_id=merchant_id,
+            domain=domain_name,
+        )
+    except Exception:
+        pass
 
     return sanitize_for_json(result)
 
