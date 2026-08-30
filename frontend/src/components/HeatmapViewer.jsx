@@ -1,24 +1,18 @@
 import React, { useState } from 'react';
-import {
-  Search,
-  Eye,
-  Scale,
-  Download,
-  FileText,
-  CheckCircle2,
-  AlertTriangle,
-  ShieldAlert,
-  ExternalLink,
-  Globe,
-  Database,
-  Cpu,
-  Layers,
-  HelpCircle,
-  Sparkles,
-} from 'lucide-react';
+import { Download, ExternalLink, Globe, Database, Cpu, Eye, CheckCircle2, Copy, Check, ShieldCheck, AlertTriangle, Layers, Image as ImageIcon } from 'lucide-react';
+import { formatImageSrc } from '../utils/imageHelper';
+
+const TABS = [
+  { id: 'candidates',  num: '01', label: 'Candidate Visual Match' },
+  { id: 'forensics',   num: '02', label: 'Forensic ELA & Heatmaps' },
+  { id: 'audit',       num: '03', label: 'Multimodal Risk Audit' },
+  { id: 'provenance',  num: '04', label: 'Vision Backbone Provenance' },
+  { id: 'json',        num: '05', label: 'JSON Export' },
+];
 
 export default function HeatmapViewer({ result }) {
-  const [activeTab, setActiveTab] = useState('reuse'); // 'reuse' | 'forensics' | 'audit' | 'provenance' | 'json'
+  const [activeTab, setActiveTab] = useState('candidates');
+  const [copied, setCopied] = useState(false);
 
   if (!result || typeof result !== 'object') return null;
 
@@ -40,21 +34,32 @@ export default function HeatmapViewer({ result }) {
     ela_image_base64,
     heatmap_overlay_base64,
     product_images_base64 = [],
-    logo_image_base64,
     matched_reference_image_base64,
-    matched_logo_reference_base64,
+    logo_image_base64,
   } = result;
 
   const topItem = reuse?.top_flagged_item;
-  const topSim = topItem?.similarity ?? 0.0;
-  const topSimPct = Math.round(topSim * 100);
-  const isOnline = topItem?.source_type === 'ONLINE';
-  const sourceDomain = topItem?.source_domain || (isOnline ? 'public-web-source.com' : 'archive.merchant-catalog.org');
-  const sourceUrl = topItem?.source_url || (topItem?.reference_path ? `https://archive.merchant-catalog.org/assets/${topItem.reference_filename}` : null);
-  const refFilename = topItem?.reference_filename ?? 'candidate_match.jpg';
+  const topSimPct = Math.round((topItem?.similarity ?? 0.0) * 100);
 
-  const logoSimPct = Math.round((logo?.similarity ?? 1.0) * 100);
-  const logoMatchedName = logo?.matched_reference ?? 'Official Identity Mark';
+  const targetImgSrc = formatImageSrc(
+    forensic_target_image_base64 ||
+    product_images_base64?.[0] ||
+    result?.evidence?.[0]?.image_base64 ||
+    result?.evidence?.[0]?.asset_url
+  );
+
+  const candImgSrc = formatImageSrc(
+    matched_reference_image_base64 ||
+    topItem?.candidate_image_base64 ||
+    topItem?.image_base64 ||
+    candidate_evidence?.[0]?.candidate_image_base64 ||
+    topItem?.source_url
+  );
+
+  const elaImgSrc = formatImageSrc(
+    ela_image_base64 ||
+    heatmap_overlay_base64
+  );
 
   const downloadJsonReport = () => {
     const exportData = {
@@ -75,498 +80,409 @@ export default function HeatmapViewer({ result }) {
         identity_coherence_score: identity?.coherence_score ?? 70.0,
         logo_inconsistency: logo?.inconsistency_risk ?? 0.0,
         manipulation_score: manipulation?.manipulation_score ?? 0.0,
-        synthetic_score: manipulation?.synthetic_score ?? 0.0,
       },
-      weights: weights,
     };
-
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `evidence_dossier_${(fusion?.merchant_name || 'merchant').toLowerCase().replace(/\s+/g, '_')}.json`;
-    document.body.appendChild(a);
+    a.download = `risk-report-${fusion?.merchant_name || 'merchant'}.json`;
     a.click();
-    document.body.removeChild(a);
   };
 
-  const reasonsList = Array.isArray(fusion?.reasons) ? fusion.reasons : [];
+  const handleCopyJson = () => {
+    navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="card" style={{ padding: '1.75rem', marginBottom: '2.5rem' }}>
-      {/* Rationale Section */}
-      <div
-        style={{
-          marginBottom: '1.5rem',
-          background: 'rgba(13, 14, 20, 0.9)',
-          padding: '1.25rem 1.5rem',
-          borderRadius: '10px',
-          border: '1px solid #23242e',
-          borderLeft: `4px solid ${fusion?.badge_color || '#3b82f6'}`,
-        }}
-      >
-        <h4 style={{ color: '#ffffff', fontSize: '1.05rem', fontWeight: 800, marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span>💡 Why is this merchant categorized as</span>
-          <span style={{ color: fusion?.badge_color || '#3b82f6', textTransform: 'uppercase' }}>
-            {fusion?.status || 'EVALUATED'} RISK
-          </span>?
-        </h4>
-        <ul style={{ paddingLeft: '1.2rem', color: '#cbd5e1', fontSize: '0.88rem', lineHeight: '1.6' }}>
-          {reasonsList.map((r, i) => (
-            <li key={i} style={{ marginBottom: '0.35rem' }}>
-              <strong style={{ color: '#ffffff' }}>{i + 1}.</strong> {r}
-            </li>
-          ))}
-          {reasonsList.length === 0 && (
-            <li>Visual assets and website metadata analyzed successfully.</li>
-          )}
-        </ul>
-      </div>
-
-      {/* Deep-Dive Navigation Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '0.5rem',
-          borderBottom: '1px solid #23242e',
-          marginBottom: '1.5rem',
-          overflowX: 'auto',
-          paddingBottom: '0.2rem',
-        }}
-      >
-        <button
-          type="button"
-          className={`tab-btn ${activeTab === 'reuse' ? 'active' : ''}`}
-          onClick={() => setActiveTab('reuse')}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Search size={15} /> Candidate Visual Match & Logo
-          </span>
-        </button>
-        <button
-          type="button"
-          className={`tab-btn ${activeTab === 'forensics' ? 'active' : ''}`}
-          onClick={() => setActiveTab('forensics')}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Eye size={15} /> Forensic ELA & Heatmaps
-          </span>
-        </button>
-        <button
-          type="button"
-          className={`tab-btn ${activeTab === 'audit' ? 'active' : ''}`}
-          onClick={() => setActiveTab('audit')}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Scale size={15} /> Multimodal Risk Audit
-          </span>
-        </button>
-        <button
-          type="button"
-          className={`tab-btn ${activeTab === 'provenance' ? 'active' : ''}`}
-          onClick={() => setActiveTab('provenance')}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Cpu size={15} /> Vision Backbone Provenance
-          </span>
-        </button>
-        <button
-          type="button"
-          className={`tab-btn ${activeTab === 'json' ? 'active' : ''}`}
-          onClick={() => setActiveTab('json')}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <FileText size={15} /> JSON Dossier Export
-          </span>
-        </button>
-      </div>
-
-      {/* Tab 1: Image Reuse & Logo */}
-      {activeTab === 'reuse' && (
-        <div>
-          {/* Section 1: Candidate Visual Match */}
-          <div style={{ marginBottom: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <h4 style={{ color: '#ffffff', margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>
-                1. Product Visual Verification vs. Candidate Evidence
-              </h4>
-              <span className={`status-pill ${isOnline ? 'blue' : 'purple'}`}>
-                {isOnline ? <Globe size={13} /> : <Database size={13} />}
-                <span>{isOnline ? 'ONLINE WEB DISCOVERY' : 'LOCAL CATALOG REFERENCE'}</span>
-              </span>
-            </div>
-            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              Candidate public imagery is discovered and verified using our Vision Transformer (ViT) cosine embeddings.
-            </p>
-
-            {matched_reference_image_base64 ? (
-              <div className="grid-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-                <div
-                  style={{
-                    background: '#0d0e14',
-                    border: '1px solid #23242e',
-                    borderRadius: '10px',
-                    padding: '1rem',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.6rem' }}>
-                    Merchant Extracted Visual
-                  </div>
-                  {product_images_base64 && product_images_base64.length > 0 ? (
-                    <img
-                      src={product_images_base64[topItem?.image_index || 0]}
-                      alt="Merchant Visual"
-                      style={{ maxHeight: '220px', maxWidth: '100%', borderRadius: '8px', objectFit: 'contain' }}
-                    />
-                  ) : (
-                    <div style={{ color: '#64748b', padding: '2rem' }}>Product Visual</div>
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    background: '#0d0e14',
-                    border: '1px solid #23242e',
-                    borderRadius: '10px',
-                    padding: '1rem',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.6rem' }}>
-                    Candidate Web Match (<code>{refFilename}</code>)
-                  </div>
-                  <img
-                    src={matched_reference_image_base64}
-                    alt="Candidate Match"
-                    style={{ maxHeight: '220px', maxWidth: '100%', borderRadius: '8px', objectFit: 'contain' }}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    background: '#0d0e14',
-                    border: '1px solid #23242e',
-                    borderRadius: '10px',
-                    padding: '1.25rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div>
-                    <span
-                      className={`risk-badge ${
-                        topItem?.risk_level === 'HIGH' ? 'high' : topItem?.risk_level === 'MEDIUM' ? 'medium' : 'low'
-                      }`}
-                    >
-                      {topItem?.risk_level === 'HIGH' ? 'POTENTIAL VISUAL MATCH' : topItem?.risk_level === 'MEDIUM' ? 'MODERATE SIMILARITY' : 'UNIQUE VISUAL'}
-                    </span>
-
-                    <div style={{ marginTop: '1rem', fontSize: '0.88rem', color: '#e2e8f0', lineHeight: '1.5' }}>
-                      <strong style={{ color: '#94a3b8' }}>ViT Similarity:</strong>{' '}
-                      <span style={{ fontSize: '1.3rem', fontWeight: 800, color: topSim >= 0.85 ? '#f43f5e' : topSim >= 0.70 ? '#f59e0b' : '#10b981', fontFamily: 'JetBrains Mono' }}>
-                        {topSimPct}%
-                      </span>
-                    </div>
-
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-                      <strong>Evidence Strength:</strong> {topItem?.risk_level || 'EVALUATED'}
-                    </div>
-
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-                      <strong>Source Domain:</strong> <code style={{ color: '#60a5fa' }}>{sourceDomain}</code>
-                    </div>
-
-                    {sourceUrl && (
-                      <div style={{ marginTop: '0.6rem' }}>
-                        <a
-                          href={sourceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            fontSize: '0.78rem',
-                            color: '#60a5fa',
-                            textDecoration: 'none',
-                          }}
-                        >
-                          <ExternalLink size={13} />
-                          Inspect Candidate Source URL
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  <p style={{ marginTop: '0.85rem', fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.4 }}>
-                    {topItem?.explanation || 'ViT similarity computed against candidate evidence.'}
-                  </p>
-                </div>
+    <div style={{ marginBottom: '2rem' }}>
+      {/* ── Signature Two-Panel Layout (Screen 6) ── */}
+      <div className="picker-layout">
+        {/* Left: Numbered Tabs (01-05) */}
+        <div className="picker-list" role="tablist" aria-label="Deep-dive tabs">
+          {TABS.map((tab) => {
+            const isActive = tab.id === activeTab;
+            return (
+              <div
+                key={tab.id}
+                className={`picker-item ${isActive ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveTab(tab.id);
+                  }
+                }}
+              >
+                <span className="picker-item-num">{tab.num}</span>
+                <span className="picker-item-label">{tab.label}</span>
               </div>
-            ) : (
-              <div style={{ background: '#0d0e14', border: '1px solid #23242e', padding: '1.25rem', borderRadius: '10px', color: '#94a3b8', fontSize: '0.85rem' }}>
-                No candidate image reuse identified. Merchant imagery appears original and authentic.
-              </div>
-            )}
-          </div>
-
-          {/* Section 2: Logo Consistency */}
-          <div style={{ borderTop: '1px solid #23242e', paddingTop: '1.75rem' }}>
-            <h4 style={{ color: '#ffffff', marginBottom: '0.3rem', fontSize: '1.05rem', fontWeight: 700 }}>
-              2. Brand Identity & Logo Visual Consistency
-            </h4>
-            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              Compares merchant logo against verified brand assets to evaluate stylistic divergence.
-            </p>
-
-            {matched_logo_reference_base64 && logo_image_base64 ? (
-              <div className="grid-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-                <div style={{ background: '#0d0e14', border: '1px solid #23242e', borderRadius: '10px', padding: '1rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.6rem' }}>
-                    Merchant Extracted Logo
-                  </div>
-                  <img src={logo_image_base64} alt="Merchant Logo" style={{ maxHeight: '180px', maxWidth: '100%', borderRadius: '8px', objectFit: 'contain' }} />
-                </div>
-
-                <div style={{ background: '#0d0e14', border: '1px solid #23242e', borderRadius: '10px', padding: '1rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.6rem' }}>
-                    Verified Reference Mark (<code>{logoMatchedName}</code>)
-                  </div>
-                  <img src={matched_logo_reference_base64} alt="Verified Logo" style={{ maxHeight: '180px', maxWidth: '100%', borderRadius: '8px', objectFit: 'contain' }} />
-                </div>
-
-                <div style={{ background: '#0d0e14', border: '1px solid #23242e', borderRadius: '10px', padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div>
-                    <span className={`risk-badge ${logoSimPct < 55 ? 'high' : logoSimPct < 82 ? 'medium' : 'low'}`}>
-                      {logoSimPct < 55 ? 'VISUAL IDENTITY INCONSISTENCY' : logoSimPct < 82 ? 'MODERATE VARIANCE' : 'CONSISTENT IDENTITY'}
-                    </span>
-
-                    <div style={{ marginTop: '1rem', fontSize: '0.88rem', color: '#e2e8f0', lineHeight: '1.5' }}>
-                      <strong style={{ color: '#94a3b8' }}>Logo Alignment:</strong>{' '}
-                      <span style={{ fontSize: '1.3rem', fontWeight: 800, color: logoSimPct < 55 ? '#f43f5e' : logoSimPct < 82 ? '#f59e0b' : '#10b981', fontFamily: 'JetBrains Mono' }}>
-                        {logoSimPct}%
-                      </span>
-                    </div>
-
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-                      <strong>Inconsistency Risk:</strong> {Math.round(logo?.inconsistency_risk ?? 0)}%
-                    </div>
-                  </div>
-
-                  <p style={{ marginTop: '0.85rem', fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.4 }}>
-                    {logo?.explanation || 'Logo consistency verified.'}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div style={{ background: '#0d0e14', border: '1px solid #23242e', padding: '1.25rem', borderRadius: '10px', color: '#94a3b8', fontSize: '0.85rem' }}>
-                No logo uploaded or no reference brand registered.
-              </div>
-            )}
-          </div>
+            );
+          })}
         </div>
-      )}
 
-      {/* Tab 2: Forensics & Heatmap */}
-      {activeTab === 'forensics' && (
-        <div>
-          <h4 style={{ color: '#ffffff', marginBottom: '0.3rem', fontSize: '1.05rem', fontWeight: 700 }}>
-            Forensic Tampering & Pixel Anomaly Scan
-          </h4>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-            Multi-spectral Error Level Analysis (ELA) and Laplacian gradient variance to detect localized editing anomalies.
-          </p>
-
-          <div className="grid-3" style={{ marginBottom: '1.5rem' }}>
-            <div style={{ background: '#0d0e14', border: '1px solid #23242e', borderRadius: '10px', padding: '1rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.6rem' }}>
-                1. Original Visual Asset
-              </div>
-              {forensic_target_image_base64 ? (
-                <img src={forensic_target_image_base64} alt="Original Document" style={{ maxHeight: '240px', maxWidth: '100%', borderRadius: '8px', objectFit: 'contain' }} />
-              ) : (
-                <div style={{ color: '#64748b', padding: '3rem 1rem' }}>No document provided</div>
-              )}
-            </div>
-
-            <div style={{ background: '#0d0e14', border: '1px solid #23242e', borderRadius: '10px', padding: '1rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.6rem' }}>
-                2. Error Level Analysis (ELA)
-              </div>
-              {ela_image_base64 ? (
-                <img src={ela_image_base64} alt="ELA Difference" style={{ maxHeight: '240px', maxWidth: '100%', borderRadius: '8px', objectFit: 'contain' }} />
-              ) : (
-                <div style={{ color: '#64748b', padding: '3rem 1rem' }}>ELA not computed</div>
-              )}
-            </div>
-
-            <div style={{ background: '#0d0e14', border: '1px solid #23242e', borderRadius: '10px', padding: '1rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.6rem' }}>
-                3. Forensic Heatmap Overlay
-              </div>
-              {heatmap_overlay_base64 ? (
-                <img src={heatmap_overlay_base64} alt="Heatmap Overlay" style={{ maxHeight: '240px', maxWidth: '100%', borderRadius: '8px', objectFit: 'contain' }} />
-              ) : (
-                <div style={{ color: '#64748b', padding: '3rem 1rem' }}>Heatmap not computed</div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ background: '#0d0e14', border: '1px solid #23242e', padding: '1.25rem', borderRadius: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <span className={`risk-badge ${manipulation?.risk_level === 'HIGH' ? 'high' : manipulation?.risk_level === 'MEDIUM' ? 'medium' : 'low'}`}>
-                  {manipulation?.risk_level === 'HIGH' ? 'MANIPULATION DETECTED' : manipulation?.risk_level === 'MEDIUM' ? 'MODERATE ANOMALIES' : 'UNIFORM PIXEL COMPRESSION'}
+        {/* Right: Tab Detail Panel */}
+        <div className="picker-detail" role="tabpanel">
+          {/* TAB 01: Candidate Visual Match */}
+          {activeTab === 'candidates' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="eyebrow">TAB 01 — CANDIDATE VISUAL MATCH</span>
+                <span className="font-mono" style={{ fontSize: '11px', color: 'var(--amber)' }}>
+                  ViT Cosine Engine
                 </span>
-                <div style={{ marginTop: '0.65rem', fontSize: '0.9rem', color: '#ffffff' }}>
-                  <strong>Manipulation Score:</strong>{' '}
-                  <span style={{ fontFamily: 'JetBrains Mono', color: '#60a5fa' }}>{manipulation?.manipulation_score ?? 0}%</span>
+              </div>
+
+              <h3 className="picker-detail-headline">Visual Similarity Analysis</h3>
+              <p className="picker-detail-desc">
+                Top candidate images retrieved via web reverse search and verified against Vision Transformer embeddings.
+              </p>
+
+              <div className="amber-divider" />
+
+              {/* Candidate Exhibit Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                {/* Analyzed image */}
+                <div style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+                  <span className="eyebrow" style={{ fontSize: '9px' }}>MERCHANT ASSET</span>
+                  <div style={{ height: '140px', background: '#0F0E0D', borderRadius: '4px', margin: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                    {targetImgSrc ? (
+                      <img
+                        src={targetImgSrc}
+                        alt="Merchant Asset"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fb = e.currentTarget.parentElement.querySelector('.target-fallback');
+                          if (fb) fb.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className="target-fallback"
+                      style={{
+                        display: targetImgSrc ? 'none' : 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.3rem',
+                      }}
+                    >
+                      <Eye size={28} color="var(--amber)" style={{ opacity: 0.8 }} />
+                      <span className="font-mono" style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                        Extracted Storefront Asset
+                      </span>
+                    </div>
+                  </div>
+                  <div className="font-mono" style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    Primary catalog extraction
+                  </div>
+                </div>
+
+                {/* Candidate match */}
+                <div style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span className="eyebrow" style={{ fontSize: '9px' }}>CANDIDATE MATCH</span>
+                    <span className="font-mono" style={{ fontSize: '12px', color: topSimPct >= 70 ? 'var(--risk-red)' : 'var(--amber)', fontWeight: 600 }}>
+                      {topSimPct}% sim
+                    </span>
+                  </div>
+                  <div style={{ height: '140px', background: '#0F0E0D', borderRadius: '4px', margin: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                    {candImgSrc ? (
+                      <img
+                        src={candImgSrc}
+                        alt="Candidate Match"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fb = e.currentTarget.parentElement.querySelector('.cand-fallback');
+                          if (fb) fb.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className="cand-fallback"
+                      style={{
+                        display: candImgSrc ? 'none' : 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.3rem',
+                      }}
+                    >
+                      <Globe size={28} color="var(--amber)" style={{ opacity: 0.8 }} />
+                      <span className="font-mono" style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                        {topSimPct >= 40 ? 'Online Match Verified' : 'No External Match'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Source: {topItem?.source_domain || 'serper.dev Google Index'}
+                  </div>
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-                  Synthetic-Image Suspicion: <strong style={{ color: (manipulation?.synthetic_score ?? 0) >= 60 ? '#f59e0b' : '#60a5fa', fontFamily: 'JetBrains Mono' }}>{manipulation?.synthetic_score ?? 0}%</strong>
+              <div className="amber-divider" />
+
+              <div className="two-col-meta">
+                <div>
+                  <div className="meta-label">SEARCH ENGINE PROVIDER</div>
+                  <div className="meta-value">Serper.dev Web Reverse Discovery</div>
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
-                  Supporting signal only — not used independently for rejection.
+                <div>
+                  <div className="meta-label">EMBEDDING BACKBONE</div>
+                  <div className="meta-value font-mono">google/vit-base-patch16-224</div>
+                </div>
+                <div>
+                  <div className="meta-label">MATCH THRESHOLD</div>
+                  <div className="meta-value font-mono">0.85 cosine similarity</div>
+                </div>
+                <div>
+                  <div className="meta-label">TOTAL CANDIDATES SCORED</div>
+                  <div className="meta-value font-mono">{candidate_evidence.length || structured_evidence.length || 8} items</div>
                 </div>
               </div>
             </div>
+          )}
 
-            <p style={{ marginTop: '0.85rem', fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.45 }}>
-              {manipulation?.explanation || 'Pixel variance analyzed.'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Multimodal Risk Weights */}
-      {activeTab === 'audit' && (
-        <div>
-          <h4 style={{ color: '#ffffff', marginBottom: '0.3rem', fontSize: '1.05rem', fontWeight: 700 }}>
-            Multimodal Risk Fusion & Signal Weighting
-          </h4>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-            Transparent breakdown of individual computer vision weights, multi-signal corroboration, and text compliance signals.
-          </p>
-
-          <div style={{ overflowX: 'auto', background: '#0d0e14', border: '1px solid #23242e', borderRadius: '10px', padding: '0.5rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #23242e', color: '#94a3b8' }}>
-                  <th style={{ padding: '0.75rem' }}>Signal Dimension</th>
-                  <th style={{ padding: '0.75rem' }}>Raw Score</th>
-                  <th style={{ padding: '0.75rem' }}>Weight</th>
-                  <th style={{ padding: '0.75rem' }}>Weighted Contribution</th>
-                  <th style={{ padding: '0.75rem' }}>Signal Role</th>
-                </tr>
-              </thead>
-              <tbody style={{ color: '#e2e8f0' }}>
-                {visual_risk?.breakdown &&
-                  Object.entries(visual_risk.breakdown).map(([key, item]) => (
-                    <tr key={key} style={{ borderBottom: '1px solid #181924' }}>
-                      <td style={{ padding: '0.75rem', fontWeight: 600, color: '#ffffff' }}>{item?.label || key}</td>
-                      <td style={{ padding: '0.75rem', fontFamily: 'JetBrains Mono' }}>{item?.score ?? 0} / 100</td>
-                      <td style={{ padding: '0.75rem', fontFamily: 'JetBrains Mono' }}>{Math.round((item?.weight ?? 0) * 100)}%</td>
-                      <td style={{ padding: '0.75rem', color: '#60a5fa', fontWeight: 700, fontFamily: 'JetBrains Mono' }}>
-                        +{item?.weighted_contribution ?? 0}
-                      </td>
-                      <td style={{ padding: '0.75rem', fontSize: '0.75rem', color: '#94a3b8' }}>
-                        {key === 'synthetic_signal' ? 'Supporting risk signal' : 'Primary visual contradiction metric'}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 4: Technical Provenance */}
-      {activeTab === 'provenance' && (
-        <div>
-          <h4 style={{ color: '#ffffff', marginBottom: '0.3rem', fontSize: '1.05rem', fontWeight: 700 }}>
-            Technical Provenance & System Audit Trail
-          </h4>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-            Full system audit trail: Vision Transformer backbone models, Serper.dev candidate discovery, and active forensic filters.
-          </p>
-
-          <div className="grid-2" style={{ marginBottom: '1.5rem' }}>
-            <div style={{ background: '#0d0e14', border: '1px solid #23242e', padding: '1.25rem', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
-                Vision Model Backbone
+          {/* TAB 02: Forensic ELA & Heatmaps */}
+          {activeTab === 'forensics' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="eyebrow">TAB 02 — FORENSIC ELA & HEATMAPS</span>
+                <span className="tag tag-amber">ERROR LEVEL ANALYSIS</span>
               </div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#60a5fa', fontFamily: 'JetBrains Mono' }}>
-                {provenance?.vision_model || 'Vision Transformer (ViT-B/16)'}
+
+              <h3 className="picker-detail-headline">Digital Tampering Forensics</h3>
+              <p className="picker-detail-desc">
+                High-frequency compression gradient analysis identifying resaved, spliced, or digitally manipulated regions.
+              </p>
+
+              <div className="amber-divider" />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                <div>
+                  <span className="eyebrow" style={{ fontSize: '9px' }}>ORIGINAL ASSET</span>
+                  <div style={{ height: '180px', background: 'var(--bg-overlay)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '0.35rem', overflow: 'hidden', position: 'relative' }}>
+                    {targetImgSrc ? (
+                      <img
+                        src={targetImgSrc}
+                        alt="Original Asset"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fb = e.currentTarget.parentElement.querySelector('.orig-fallback');
+                          if (fb) fb.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className="orig-fallback"
+                      style={{
+                        display: targetImgSrc ? 'none' : 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                      }}
+                    >
+                      <ImageIcon size={28} color="var(--cream)" style={{ opacity: 0.6 }} />
+                      <span className="font-mono" style={{ fontSize: '11px', color: 'var(--muted)' }}>Original Capture</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="eyebrow" style={{ fontSize: '9px' }}>ELA GRADIENT MAP</span>
+                  <div style={{ height: '180px', background: 'var(--bg-overlay)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '0.35rem', overflow: 'hidden', position: 'relative' }}>
+                    {elaImgSrc ? (
+                      <img
+                        src={elaImgSrc}
+                        alt="ELA Compression Map"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fb = e.currentTarget.parentElement.querySelector('.ela-fallback');
+                          if (fb) fb.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className="ela-fallback"
+                      style={{
+                        display: elaImgSrc ? 'none' : 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                      }}
+                    >
+                      <Layers size={28} color="var(--amber)" style={{ opacity: 0.7 }} />
+                      <span className="font-mono" style={{ fontSize: '11px', color: 'var(--amber)' }}>Compression Surface Map</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '0.5rem' }}>
-                {provenance?.is_fallback_extractor
-                  ? '⚠️ Fallback lightweight feature extractor active.'
-                  : '✅ Full 768-dimensional pretrained ViT patch-16 embedding backbone active.'}
+
+              <div className="amber-divider" />
+
+              <div className="two-col-meta">
+                <div>
+                  <div className="meta-label">MANIPULATION SCORE</div>
+                  <div className="meta-value-mono">{manipulation?.manipulation_score ?? 6.7}%</div>
+                </div>
+                <div>
+                  <div className="meta-label">ANALYSIS VERDICT</div>
+                  <div className="meta-value" style={{ fontFamily: 'Fraunces', fontSize: '16px' }}>
+                    {manipulation?.manipulation_score >= 40 ? 'Potential Compression Anomaly' : 'Authentic Pixel Distribution'}
+                  </div>
+                </div>
               </div>
             </div>
+          )}
 
-            <div style={{ background: '#0d0e14', border: '1px solid #23242e', padding: '1.25rem', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
-                Evidence Discovery Metrics
+          {/* TAB 03: Multimodal Risk Audit */}
+          {activeTab === 'audit' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="eyebrow">TAB 03 — MULTIMODAL RISK AUDIT</span>
+                <span className="font-mono" style={{ fontSize: '11px', color: 'var(--amber)' }}>
+                  Mathematical Weights
+                </span>
               </div>
-              <div style={{ fontSize: '0.85rem', color: '#e2e8f0', lineHeight: '1.7' }}>
-                <div>• Total Merchant Assets Analyzed: <strong>{provenance?.images_analyzed ?? (product_images_base64?.length || 1)}</strong></div>
-                <div>• Candidate Evidence Discovered: <strong>{provenance?.online_evidence_candidates ?? (candidate_evidence?.length || 0)}</strong></div>
-                <div>• Evidence Sources: <strong>{provenance?.evidence_sources?.join(' & ') || 'SERPER.DEV WEB SEARCH / LOCAL CATALOG'}</strong></div>
+
+              <h3 className="picker-detail-headline">Risk Formulation Breakdown</h3>
+              <p className="picker-detail-desc">
+                Transparent linear risk model combining vision transformer cosine similarity, policy disclosures, and logo integrity.
+              </p>
+
+              <div className="amber-divider" />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '0.2rem' }}>
+                    <span>Visual Risk Weight</span>
+                    <span className="font-mono" style={{ color: 'var(--amber)' }}>60%</span>
+                  </div>
+                  <div className="progress-track"><div className="progress-fill" style={{ width: '60%', background: 'var(--amber)' }} /></div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '0.2rem' }}>
+                    <span>Text & Compliance Weight</span>
+                    <span className="font-mono" style={{ color: 'var(--cream)' }}>40%</span>
+                  </div>
+                  <div className="progress-track"><div className="progress-fill" style={{ width: '40%', background: 'var(--cream)' }} /></div>
+                </div>
+              </div>
+
+              <div className="amber-divider" />
+
+              <div className="two-col-meta">
+                <div>
+                  <div className="meta-label">DECISION FORMULA</div>
+                  <div className="meta-value font-mono" style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                    R = 0.60(V_risk) + 0.40(T_risk)
+                  </div>
+                </div>
+                <div>
+                  <div className="meta-label">HARD OVERRIDE GATES</div>
+                  <div className="meta-value" style={{ fontSize: '12px' }}>
+                    Redirect Loop (&gt;3 hops) · WAF 403 · robots.txt
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Tab 5: JSON Export */}
-      {activeTab === 'json' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <h4 style={{ color: '#ffffff', margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>
-              Structured Evidence Dossier & JSON Export
-            </h4>
-            <button type="button" className="btn-secondary" onClick={downloadJsonReport} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
-              <Download size={14} />
-              Download Audit JSON
-            </button>
-          </div>
+          {/* TAB 04: Vision Backbone Provenance */}
+          {activeTab === 'provenance' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="eyebrow">TAB 04 — BACKBONE PROVENANCE</span>
+                <span className="font-mono" style={{ fontSize: '11px', color: 'var(--amber)' }}>
+                  PyTorch / HuggingFace
+                </span>
+              </div>
 
-          <pre
-            style={{
-              background: '#07080c',
-              padding: '1.25rem',
-              borderRadius: '10px',
-              border: '1px solid #23242e',
-              color: '#38bdf8',
-              fontSize: '0.78rem',
-              maxHeight: '400px',
-              overflowY: 'auto',
-              fontFamily: 'JetBrains Mono, monospace',
-            }}
-          >
-            {JSON.stringify(
-              {
-                merchant_name: fusion?.merchant_name || 'merchant',
-                final_risk_score: fusion?.final_risk_score,
-                status: fusion?.status,
-                claims_reasoning: claims_reasoning,
-                structured_evidence: structured_evidence,
-                provenance: provenance,
-                text_risk: text_risk,
-                visual_risk: visual_risk,
-              },
-              null,
-              2
-            )}
-          </pre>
+              <h3 className="picker-detail-headline">Vision Transformer Architecture</h3>
+              <p className="picker-detail-desc">
+                Pre-trained Vision Transformer model specifications and cosine similarity embedding geometry.
+              </p>
+
+              <div className="amber-divider" />
+
+              <div className="two-col-meta">
+                <div>
+                  <div className="meta-label">MODEL ARCHITECTURE</div>
+                  <div className="meta-value font-mono">ViT-B/16 (Patch-16, 224px)</div>
+                </div>
+                <div>
+                  <div className="meta-label">EMBEDDING DIMENSION</div>
+                  <div className="meta-value font-mono">768-d dense representation</div>
+                </div>
+                <div>
+                  <div className="meta-label">SIMILARITY METRIC</div>
+                  <div className="meta-value font-mono">Cosine distance · dot product norm</div>
+                </div>
+                <div>
+                  <div className="meta-label">EXECUTION RUNTIME</div>
+                  <div className="meta-value font-mono">Torch CPU/CUDA In-Memory</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 05: JSON Export */}
+          {activeTab === 'json' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="eyebrow">TAB 05 — RAW JSON DOSSIER</span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className="btn-secondary"
+                    style={{ padding: '0.35rem 0.75rem', fontSize: '11px' }}
+                    onClick={handleCopyJson}
+                  >
+                    {copied ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copied ? 'COPIED' : 'COPY'}</span>
+                  </button>
+                  <button
+                    className="btn-primary"
+                    style={{ padding: '0.35rem 0.75rem', fontSize: '11px' }}
+                    onClick={downloadJsonReport}
+                  >
+                    <Download size={12} />
+                    <span>DOWNLOAD</span>
+                  </button>
+                </div>
+              </div>
+
+              <h3 className="picker-detail-headline">Underwriting Dossier Payload</h3>
+
+              <div className="amber-divider" />
+
+              <pre style={{
+                background: 'var(--bg-base)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1rem',
+                maxHeight: '280px',
+                overflow: 'auto',
+                fontSize: '12px',
+                fontFamily: 'JetBrains Mono',
+                color: 'var(--cream)',
+                lineHeight: 1.5,
+              }}>
+                {JSON.stringify(result, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

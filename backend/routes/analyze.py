@@ -168,6 +168,7 @@ def run_pipeline(
     search_hints: Optional[List[str]] = None,
     test_fixture_dir: Optional[Union[str, Path]] = None,
     skip_forensics: bool = False,
+    representative_metadata: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Executes explainable multimodal visual risk analysis across extracted merchant assets.
@@ -234,10 +235,14 @@ def run_pipeline(
 
     all_eval_assets = []
     for idx, p_img in enumerate(product_images):
+        real_meta = (representative_metadata or [])[idx] if idx < len(representative_metadata or []) else {}
+        real_src = real_meta.get("src") or f"https://{merchant_domain or 'merchant.com'}/products/asset_{idx+1}.jpg"
         all_eval_assets.append((p_img, {
-            "src": f"https://{merchant_domain or 'merchant.com'}/products/asset_{idx+1}.jpg",
-            "asset_type": "product_image",
-            "sha256": f"hash_{merchant_name.lower()[:6]}_p{idx+1}",
+            "src": real_src,
+            "asset_type": real_meta.get("asset_type", "product_image"),
+            "sha256": real_meta.get("sha256") or f"hash_{merchant_name.lower()[:6]}_p{idx+1}",
+            "width": real_meta.get("width"),
+            "height": real_meta.get("height"),
         }))
     if logo_image is not None:
         all_eval_assets.append((logo_image, {
@@ -254,6 +259,7 @@ def run_pipeline(
             current_merchant_id=merchant_id,
             current_domain=merchant_domain,
         )
+        fused_item["image_base64"] = image_to_base64(img_obj)
         evidence_list.append(fused_item)
 
         vit_sim = float(fused_item.get("vit_cosine_similarity", 0.0))
@@ -480,6 +486,7 @@ def run_pipeline(
     # Clean candidate evidence array (strip raw PIL images)
     clean_candidates_list = []
     for c in verified_candidates_res.get("all_candidates", []):
+        cand_b64 = image_to_base64(c.get("image")) if c.get("image") is not None else None
         clean_candidates_list.append({
             "candidate_id": c.get("candidate_id"),
             "similarity": c.get("similarity"),
@@ -491,6 +498,7 @@ def run_pipeline(
             "title": c.get("title"),
             "evidence_strength": c.get("evidence_strength"),
             "match_label": c.get("match_label", "Potential External Match"),
+            "candidate_image_base64": cand_b64,
         })
     clean_candidates_list.extend(cross_merchant_candidate_matches)
 
@@ -703,7 +711,8 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         )
 
     product_images = [img for img, _ in proc_res["representative_images"]]
-    search_hints = [meta.get("search_query_hint") for _, meta in proc_res["representative_images"]]
+    representative_metadata = [meta for _, meta in proc_res["representative_images"]]
+    search_hints = [meta.get("search_query_hint") for meta in representative_metadata]
     logo_image = proc_res.get("logo_image")
 
     # If crawler found direct logo_url but wasn't in representatives, try downloading
@@ -717,6 +726,7 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
     if not product_images:
         dummy_img = Image.new("RGB", (300, 300), (240, 243, 246))
         product_images = [dummy_img]
+        representative_metadata = [{}]
         _no_real_product_images = True
     else:
         _no_real_product_images = False
@@ -775,6 +785,7 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         search_hints=search_hints,
         test_fixture_dir=None,  # No local dataset in production!
         skip_forensics=_no_real_product_images,
+        representative_metadata=representative_metadata,
     )
 
     if progress_callback:

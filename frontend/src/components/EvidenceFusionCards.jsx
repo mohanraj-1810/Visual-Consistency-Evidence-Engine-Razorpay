@@ -1,207 +1,131 @@
 import React from 'react';
-import { Layers, Globe, Database, CheckCircle2, AlertTriangle, ShieldCheck, ShieldAlert, ExternalLink, Hash, Eye, Sparkles } from 'lucide-react';
+import { Eye, Globe, Database, ShieldCheck, ShieldAlert, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { formatImageSrc } from '../utils/imageHelper';
 
 export default function EvidenceFusionCards({ evidence = [] }) {
   if (!Array.isArray(evidence) || evidence.length === 0) return null;
 
-  const getScoreColor = (val) => {
-    if (val >= 70) return '#f43f5e';
-    if (val >= 40) return '#f59e0b';
-    return '#10b981';
-  };
-
-  const getEvidenceLevelBadge = (level, corroborated) => {
-    const lvl = String(level || '').toUpperCase();
-    if (corroborated || lvl.includes('CORROBORATED') || lvl === 'HIGH') {
-      return {
-        label: 'Corroborated Potential Visual Reuse Evidence',
-        bg: 'rgba(244, 63, 94, 0.15)',
-        border: 'rgba(244, 63, 94, 0.4)',
-        text: '#fb7185',
-        icon: <ShieldAlert size={14} color="#f43f5e" />,
-      };
-    }
-    if (lvl.includes('REUSE') || lvl === 'MEDIUM' || lvl === 'POTENTIAL_REUSE') {
-      return {
-        label: 'Potential Visual Reuse Evidence',
-        bg: 'rgba(245, 158, 11, 0.15)',
-        border: 'rgba(245, 158, 11, 0.4)',
-        text: '#fbbf24',
-        icon: <AlertTriangle size={14} color="#f59e0b" />,
-      };
-    }
-    return {
-      label: 'Unique Visual Asset',
-      bg: 'rgba(16, 185, 129, 0.15)',
-      border: 'rgba(16, 185, 129, 0.4)',
-      text: '#34d399',
-      icon: <ShieldCheck size={14} color="#10b981" />,
-    };
-  };
-
   return (
-    <div style={{ marginBottom: '2.5rem' }}>
-      <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div>
-          <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <Layers size={22} color="#3b82f6" />
-            Evidence Fusion Layer (Public Web ↔ Local ViT)
-          </h3>
-          <p style={{ fontSize: '0.86rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-            Cross-references each extracted asset across public web discovery sources and platform ViT embeddings.
-          </p>
-        </div>
-        <span className="status-pill blue">
-          <Eye size={13} />
-          <span>DUAL-SOURCE CORROBORATION</span>
-        </span>
-      </div>
-
-      <div className="grid-2" style={{ gap: '1.25rem' }}>
+    <div style={{ marginBottom: '1.5rem' }}>
+      {/* ── 3-Column Evidence Fusion Grid (Screen 5) ── */}
+      <div className="evidence-grid">
         {evidence.map((item, idx) => {
           if (!item || typeof item !== 'object') return null;
 
           const webScore = item.google_web_match_score ?? item.web_match_score ?? 0;
           const vitScore = item.local_vit_similarity_score ?? Math.round((item.vit_cosine_similarity ?? item.similarity ?? 0) * 100);
-          const corroborated = Boolean(item.corroborated);
-          const badge = getEvidenceLevelBadge(item.asset_evidence_level || item.level || item.risk_level, corroborated);
+          const corroborated = Boolean(item.corroborated) || webScore >= 70 || vitScore >= 70;
+          const isPotentialReuse = webScore >= 40 || vitScore >= 40;
           const matchedDomains = Array.isArray(item.matched_domains) ? item.matched_domains : item.source_domain ? [item.source_domain] : [];
-          const maskedMerchants = Array.isArray(item.masked_merchant_ids) ? item.masked_merchant_ids : [];
+
+          const numStr = String(idx + 1).padStart(2, '0');
+          const imgSrc = formatImageSrc(
+            item.image_base64 ||
+            item.asset_image_base64 ||
+            item.matched_image_base64 ||
+            item.base64 ||
+            item.asset_url ||
+            item.image_url ||
+            item.src
+          );
 
           return (
             <div
               key={idx}
-              className="card"
-              style={{
-                border: `1px solid ${corroborated ? 'rgba(244, 63, 94, 0.4)' : '#23242e'}`,
-                padding: '1.35rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem',
-                boxShadow: corroborated ? '0 0 20px rgba(244, 63, 94, 0.18)' : 'var(--shadow-card)',
-              }}
+              className={`exhibit-card ${corroborated ? 'flagged' : ''}`}
             >
-              {/* Card Header: Asset Type & Badge */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span className="data-chip highlight">
-                  Asset #{idx + 1} • {item.asset_type || 'product_image'}
-                </span>
+              {/* Header */}
+              <div className="exhibit-card-header">
+                <span className="eyebrow">EXHIBIT {numStr}</span>
+                {corroborated ? (
+                  <span className="tag tag-amber">⚑ REUSE DETECTED</span>
+                ) : isPotentialReuse ? (
+                  <span className="tag tag-amber">POTENTIAL MATCH</span>
+                ) : (
+                  <span className="tag tag-green">UNIQUE ASSET</span>
+                )}
+              </div>
+
+              {/* Thumbnail Area */}
+              <div className="exhibit-thumb" style={{ position: 'relative', overflow: 'hidden' }}>
+                {imgSrc ? (
+                  <img
+                    src={imgSrc}
+                    alt={`Exhibit ${numStr}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fb = e.currentTarget.parentElement.querySelector('.fallback-placeholder');
+                      if (fb) fb.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
 
                 <div
+                  className="fallback-placeholder"
                   style={{
-                    display: 'flex',
+                    display: imgSrc ? 'none' : 'flex',
+                    width: '100%',
+                    height: '100%',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '0.35rem',
-                    background: badge.bg,
-                    border: `1px solid ${badge.border}`,
-                    color: badge.text,
-                    padding: '0.25rem 0.65rem',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    background: 'radial-gradient(ellipse at center, rgba(217,161,92,0.06) 0%, rgba(23,21,18,0.95) 100%)',
                   }}
                 >
-                  {badge.icon}
-                  <span>{badge.label}</span>
+                  <ImageIcon size={28} color="var(--amber)" style={{ opacity: 0.7 }} />
+                  <span className="font-mono" style={{ fontSize: '11px', color: 'var(--cream)', opacity: 0.85 }}>
+                    {item.asset_type || 'storefront_image'}
+                  </span>
+                  <span className="font-mono" style={{ fontSize: '9px', color: 'var(--muted)' }}>
+                    {item.sha256 ? `hash:${item.sha256.slice(0, 10)}...` : 'Visual Fingerprint Verified'}
+                  </span>
                 </div>
               </div>
 
-              {/* Asset URL */}
-              {item.asset_url && (
-                <div style={{ fontSize: '0.76rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <strong style={{ color: '#cbd5e1' }}>Asset URL:</strong> {String(item.asset_url)}
-                </div>
-              )}
-
-              {/* Two-Source Score Comparison Bars */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '1rem',
-                  background: '#0d0e14',
-                  border: '1px solid #23242e',
-                  padding: '1rem',
-                  borderRadius: '8px',
-                }}
-              >
-                {/* Source 1: Web Match */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <Globe size={13} color="#60a5fa" /> Web Search Match
-                    </span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: getScoreColor(webScore), fontFamily: 'JetBrains Mono' }}>
-                      {webScore}%
-                    </span>
-                  </div>
-                  <div style={{ background: '#1c1e28', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(100, Math.max(0, webScore))}%`, height: '100%', background: getScoreColor(webScore), transition: 'width 0.4s' }} />
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.35rem', textTransform: 'capitalize' }}>
-                    {item.provider_result ? String(item.provider_result).replace('_', ' ') : 'web discovery'}
-                  </div>
+              {/* Stats Row (Web Match vs Platform ViT) */}
+              <div className="exhibit-stats">
+                <div className="exhibit-stat">
+                  <span className="eyebrow" style={{ fontSize: '9px' }}>WEB MATCH</span>
+                  <span
+                    className={`exhibit-stat-pct ${webScore >= 70 ? 'warning' : webScore >= 40 ? 'caution' : 'clear'}`}
+                  >
+                    {webScore}%
+                  </span>
+                  <span style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'capitalize' }}>
+                    {item.provider_result ? String(item.provider_result).replace('_', ' ') : 'search index'}
+                  </span>
                 </div>
 
-                {/* Source 2: Local Platform ViT */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <Database size={13} color="#c084fc" /> Platform ViT
-                    </span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: getScoreColor(vitScore), fontFamily: 'JetBrains Mono' }}>
-                      {vitScore}%
-                    </span>
-                  </div>
-                  <div style={{ background: '#1c1e28', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(100, Math.max(0, vitScore))}%`, height: '100%', background: getScoreColor(vitScore), transition: 'width 0.4s' }} />
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.35rem' }}>
-                    cosine sim: <span style={{ fontFamily: 'JetBrains Mono', color: '#cbd5e1' }}>{item.vit_cosine_similarity ?? (vitScore / 100).toFixed(2)}</span>
-                  </div>
+                <div className="exhibit-stat-divider" />
+
+                <div className="exhibit-stat">
+                  <span className="eyebrow" style={{ fontSize: '9px' }}>PLATFORM VIT %</span>
+                  <span
+                    className={`exhibit-stat-pct ${vitScore >= 70 ? 'warning' : vitScore >= 40 ? 'caution' : 'clear'}`}
+                  >
+                    {vitScore}%
+                  </span>
+                  <span className="font-mono" style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                    cos {item.vit_cosine_similarity ?? (vitScore / 100).toFixed(2)}
+                  </span>
                 </div>
               </div>
 
-              {/* Matched Domains & Matched Merchants Details */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.78rem' }}>
-                {matchedDomains.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <strong style={{ color: '#cbd5e1' }}>Matched Web Domains:</strong>
-                    {matchedDomains.map((d, i) => (
-                      <span key={i} className="data-chip highlight" style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem' }}>
-                        {String(d)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {maskedMerchants.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <strong style={{ color: '#cbd5e1' }}>Matched Platform Merchants:</strong>
-                    {maskedMerchants.map((m, i) => (
-                      <span key={i} className="data-chip" style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderColor: 'rgba(192, 132, 252, 0.4)', color: '#d8b4fe' }}>
-                        {String(m)}
-                      </span>
-                    ))}
-                    <span style={{ fontSize: '0.7rem', color: '#64748b' }}>({maskedMerchants.length} record{maskedMerchants.length > 1 ? 's' : ''})</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Analyst Explanation Banner */}
-              {item.explanation && (
-                <div
-                  style={{
-                    background: 'rgba(14, 15, 20, 0.85)',
-                    borderLeft: `3px solid ${corroborated ? '#f43f5e' : '#3b82f6'}`,
-                    padding: '0.75rem 0.95rem',
-                    borderRadius: '6px',
-                    fontSize: '0.82rem',
-                    color: '#e2e8f0',
-                    lineHeight: '1.45',
-                  }}
-                >
-                  {item.explanation}
+              {/* Footer details: matched domain or explanation */}
+              {(matchedDomains.length > 0 || item.explanation) && (
+                <div style={{ padding: '0 1rem 0.85rem', borderTop: '1px solid var(--border)', paddingTop: '0.65rem', fontSize: '12px' }}>
+                  {matchedDomains.length > 0 && (
+                    <div style={{ color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: 'var(--cream)', fontWeight: 500 }}>Matched Source:</span> {matchedDomains.join(', ')}
+                    </div>
+                  )}
+                  {item.explanation && (
+                    <div style={{ color: 'var(--muted)', marginTop: '0.25rem', lineHeight: 1.4, fontSize: '11px' }}>
+                      {item.explanation}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

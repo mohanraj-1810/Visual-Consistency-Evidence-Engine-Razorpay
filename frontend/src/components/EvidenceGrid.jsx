@@ -1,5 +1,4 @@
 import React from 'react';
-import { Layers, Activity, ShieldCheck, Image as ImageIcon, Eye, Sparkles } from 'lucide-react';
 
 export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
   const hasReuse = reuse?.max_similarity !== null && reuse?.max_similarity !== undefined;
@@ -12,131 +11,90 @@ export default function EvidenceGrid({ reuse, logo, manipulation, identity }) {
   const manipPct = hasManip ? Math.round(manipulation.manipulation_score ?? 0.0) : null;
   const coherencePct = hasCoherence ? Math.round((identity.coherence_score <= 1.0 ? identity.coherence_score * 100 : identity.coherence_score)) : null;
 
-  const getProgressColor = (val, thresholds = [40, 70]) => {
-    if (val === null || val === undefined) return '#64748b';
-    if (val >= thresholds[1]) return '#f43f5e';
-    if (val >= thresholds[0]) return '#f59e0b';
-    return '#10b981';
+  const getMetricColor = (val, isCoherence = false) => {
+    if (val === null || val === undefined) return 'var(--muted)';
+    if (isCoherence) {
+      if (val >= 75) return 'var(--risk-green)';
+      if (val >= 50) return 'var(--amber)';
+      return 'var(--risk-red)';
+    }
+    if (val >= 70) return 'var(--risk-red)';
+    if (val >= 40) return 'var(--amber)';
+    return 'var(--risk-green)';
   };
-
-  const getCoherenceColor = (val) => {
-    if (val === null || val === undefined) return '#64748b';
-    if (val >= 80) return '#10b981';
-    if (val >= 55) return '#f59e0b';
-    return '#f43f5e';
-  };
-
-  const coherenceTierLabel =
-    coherencePct === null
-      ? 'No visual assets to measure'
-      : coherencePct >= 80
-      ? 'Strong internal visual consistency'
-      : coherencePct >= 55
-      ? 'Moderate internal visual consistency'
-      : 'Low coherence (disparate origins)';
 
   return (
-    <div style={{ marginBottom: '2.5rem' }}>
-      <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div>
-          <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <Layers size={22} color="#3b82f6" />
-            Empirical Visual Signal Breakdown
-          </h3>
-          <p style={{ fontSize: '0.86rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-            Real-time algorithmic measurements extracted from Vision Transformer embeddings and computer vision filters.
-          </p>
+    <div className="metrics-grid" style={{ marginBottom: '1.5rem' }}>
+      {/* Metric 1: Image Reuse */}
+      <div className="metric-card">
+        <span className="eyebrow">IMAGE REUSE INDEX</span>
+        <div className="metric-value" style={{ color: getMetricColor(reusePct) }}>
+          {reusePct !== null ? `${reusePct}%` : 'N/A'}
         </div>
-        <span className="status-pill purple">
-          <Activity size={13} />
-          <span>FORENSIC METRICS</span>
-        </span>
+        <div className="progress-track">
+          <div
+            className="progress-fill"
+            style={{
+              width: `${reusePct || 0}%`,
+              background: getMetricColor(reusePct),
+            }}
+          />
+        </div>
+        <div className="metric-desc">Max ViT similarity vs web/catalog candidates</div>
       </div>
 
-      <div className="grid-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
-        {/* Signal 1: Image Reuse */}
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
-            Image Reuse Index
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(reusePct, [70, 85]), fontFamily: 'JetBrains Mono' }}>
-            {reusePct !== null ? `${reusePct}%` : 'N/A'}
-          </div>
-          <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
-            <div
-              style={{
-                width: reusePct !== null ? `${Math.min(100, reusePct)}%` : '0%',
-                height: '100%',
-                backgroundColor: getProgressColor(reusePct, [70, 85]),
-                transition: 'width 0.4s ease',
-              }}
-            />
-          </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Max ViT similarity vs candidate</div>
+      {/* Metric 2: Logo Inconsistency */}
+      <div className="metric-card">
+        <span className="eyebrow">LOGO INCONSISTENCY</span>
+        <div className="metric-value" style={{ color: getMetricColor(logoInconPct) }}>
+          {logoInconPct !== null ? `${logoInconPct}%` : 'N/A'}
         </div>
+        <div className="progress-track">
+          <div
+            className="progress-fill"
+            style={{
+              width: `${logoInconPct || 0}%`,
+              background: getMetricColor(logoInconPct),
+            }}
+          />
+        </div>
+        <div className="metric-desc">Variance against verified brand marks</div>
+      </div>
 
-        {/* Signal 2: Logo Inconsistency */}
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
-            Logo Inconsistency
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(logoInconPct, [30, 60]), fontFamily: 'JetBrains Mono' }}>
-            {logoInconPct !== null ? `${logoInconPct}%` : 'N/A'}
-          </div>
-          <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
-            <div
-              style={{
-                width: logoInconPct !== null ? `${Math.min(100, logoInconPct)}%` : '0%',
-                height: '100%',
-                backgroundColor: getProgressColor(logoInconPct, [30, 60]),
-                transition: 'width 0.4s ease',
-              }}
-            />
-          </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Variance from verified identity</div>
+      {/* Metric 3: Manipulation ELA */}
+      <div className="metric-card">
+        <span className="eyebrow">MANIPULATION ELA</span>
+        <div className="metric-value" style={{ color: getMetricColor(manipPct) }}>
+          {manipPct !== null ? `${manipPct}%` : 'N/A'}
         </div>
+        <div className="progress-track">
+          <div
+            className="progress-fill"
+            style={{
+              width: `${manipPct || 0}%`,
+              background: getMetricColor(manipPct),
+            }}
+          />
+        </div>
+        <div className="metric-desc">Compression & gradient frequency anomalies</div>
+      </div>
 
-        {/* Signal 3: Manipulation Indicators */}
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
-            Manipulation ELA
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: getProgressColor(manipPct, [35, 65]), fontFamily: 'JetBrains Mono' }}>
-            {manipPct !== null ? `${manipPct}%` : 'N/A'}
-          </div>
-          <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
-            <div
-              style={{
-                width: manipPct !== null ? `${Math.min(100, manipPct)}%` : '0%',
-                height: '100%',
-                backgroundColor: getProgressColor(manipPct, [35, 65]),
-                transition: 'width 0.4s ease',
-              }}
-            />
-          </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Compression & gradient anomalies</div>
+      {/* Metric 4: Identity Consistency */}
+      <div className="metric-card">
+        <span className="eyebrow">IDENTITY COHERENCE</span>
+        <div className="metric-value" style={{ color: getMetricColor(coherencePct, true) }}>
+          {coherencePct !== null ? `${coherencePct}%` : 'N/A'}
         </div>
-
-        {/* Signal 4: Identity Consistency */}
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 700, marginBottom: '0.4rem' }}>
-            Identity Consistency
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: getCoherenceColor(coherencePct), fontFamily: 'JetBrains Mono' }}>
-            {coherencePct !== null ? `${coherencePct}%` : 'N/A'}
-          </div>
-          <div style={{ background: '#0d0e14', height: '6px', borderRadius: '3px', margin: '0.6rem 0', overflow: 'hidden', border: '1px solid #23242e' }}>
-            <div
-              style={{
-                width: coherencePct !== null ? `${Math.min(100, coherencePct)}%` : '0%',
-                height: '100%',
-                backgroundColor: getCoherenceColor(coherencePct),
-                transition: 'width 0.4s ease',
-              }}
-            />
-          </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{coherenceTierLabel}</div>
+        <div className="progress-track">
+          <div
+            className="progress-fill"
+            style={{
+              width: `${coherencePct || 0}%`,
+              background: getMetricColor(coherencePct, true),
+            }}
+          />
         </div>
+        <div className="metric-desc">Cross-product visual style consistency</div>
       </div>
     </div>
   );

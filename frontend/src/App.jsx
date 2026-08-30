@@ -1,124 +1,315 @@
-import React, { useState } from 'react';
-import Header from './components/Header';
-import MerchantForm from './components/MerchantForm';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import HeroInput from './components/HeroInput';
 import RiskCards from './components/RiskCards';
 import ClaimVsEvidence from './components/ClaimVsEvidence';
 import EvidenceGrid from './components/EvidenceGrid';
 import EvidenceFusionCards from './components/EvidenceFusionCards';
 import HeatmapViewer from './components/HeatmapViewer';
 import ErrorBoundary from './components/ErrorBoundary';
+import AnalysisCounter from './components/AnalysisCounter';
 import { streamWebsiteAnalysis } from './api/client';
-import { AlertCircle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+
+// ── Hero Stage Mapping ────────────────────────────────────────
+// Stage 0: idle  → bg 60%, headline 0
+// Stage 1: crawl → bg 40%, headline 0
+// Stage 2: search/discover → bg 18%, headline 1
+// Stage 3: done  → bg 0%, headline 2
+const STAGE_STEPS = {
+  crawl: 1, extract: 1, prioritize: 1,
+  search: 2, candidates: 2,
+  vit: 2, logo: 2, reuse: 2, manipulation: 2, identity: 2,
+  fusion: 3, completed: 3, all_done: 3,
+};
+
+const HERO_HEADLINES = [
+  'Does the evidence\nmatch the claim?',
+  'Uncovering\nthe truth.',
+  'Find out.',
+];
 
 export default function App() {
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [result, setResult]           = useState(null);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState(null);
   const [currentSteps, setCurrentSteps] = useState({});
+  const [heroStage, setHeroStage]     = useState(0);
+  const [headlineIdx, setHeadlineIdx] = useState(0);
+  const [analysisStartTs, setAnalysisStartTs] = useState(null);
+  const [analysisEndTs, setAnalysisEndTs]     = useState(null);
+  const [feedItems, setFeedItems]     = useState([]);
+  const closeStreamRef = useRef(null);
+
+  // Advance hero stage based on completed steps
+  const advanceStage = useCallback((stepId) => {
+    const targetStage = STAGE_STEPS[stepId] ?? 0;
+    setHeroStage(prev => {
+      if (targetStage > prev) {
+        // Cross-fade headline on stage advancement
+        if (targetStage === 2) setHeadlineIdx(1);
+        if (targetStage === 3) setHeadlineIdx(2);
+        return targetStage;
+      }
+      return prev;
+    });
+  }, []);
+
+  const addFeedItem = useCallback((msg) => {
+    if (!msg) return;
+    setFeedItems(prev => [
+      ...prev.slice(-20),
+      { msg, ts: Date.now() },
+    ]);
+  }, []);
 
   const handleAnalyze = (url) => {
+    // Cancel any running stream
+    if (closeStreamRef.current) closeStreamRef.current();
+
     setLoading(true);
     setError(null);
     setResult(null);
     setCurrentSteps({});
+    setHeroStage(1);
+    setHeadlineIdx(0);
+    setFeedItems([]);
+    setAnalysisStartTs(Date.now());
+    setAnalysisEndTs(null);
 
-    const closeStream = streamWebsiteAnalysis(
+    closeStreamRef.current = streamWebsiteAnalysis(
       url,
       (stepEvent) => {
-        setCurrentSteps((prev) => ({
+        const stepId = stepEvent.step?.toLowerCase?.() || '';
+        setCurrentSteps(prev => ({
           ...prev,
-          [stepEvent.step]: stepEvent.status || 'completed',
+          [stepId]: stepEvent.status || 'completed',
         }));
+        advanceStage(stepId);
+        if (stepEvent.message) addFeedItem(stepEvent.message);
       },
       (analysisData) => {
-        setCurrentSteps((prev) => ({ ...prev, all_done: true }));
+        setAnalysisEndTs(Date.now());
+        setCurrentSteps(prev => ({ ...prev, all_done: true }));
+        advanceStage('all_done');
         setResult(analysisData);
         setLoading(false);
       },
       (err) => {
         console.error('Analysis error:', err);
+        setAnalysisEndTs(Date.now());
         setError(err.message || 'Analysis failed. Make sure backend is running.');
         setLoading(false);
-      }
+        setHeroStage(0);
+        setHeadlineIdx(0);
+      },
     );
+  };
 
-    return closeStream;
+  // Compute pipeline step states for the stepper
+  const PIPELINE_STAGES = [
+    { id: 'crawl',     label: 'CRAWL',    steps: ['crawl', 'extract', 'prioritize'] },
+    { id: 'discover',  label: 'DISCOVER', steps: ['search', 'candidates'] },
+    { id: 'verify',    label: 'VERIFY',   steps: ['vit', 'logo', 'reuse', 'manipulation', 'identity'] },
+    { id: 'score',     label: 'SCORE',    steps: ['fusion', 'completed'] },
+  ];
+
+  const getStageStatus = (stage) => {
+    if (currentSteps.all_done) return 'done';
+    const anyActive = stage.steps.some(s =>
+      currentSteps[s] === 'in_progress' || currentSteps[s] === 'running'
+    );
+    if (anyActive) return 'active';
+    const allDone = stage.steps.some(s =>
+      currentSteps[s] === 'completed' || currentSteps[s] === 'done'
+    );
+    if (allDone) return 'done';
+    return 'idle';
   };
 
   const fusionEvidence = result?.evidence || result?.structured_evidence || result?.candidate_evidence || [];
 
+  const verdictClass = (() => {
+    const s = result?.fusion?.status || '';
+    if (s.includes('HIGH') || s.includes('BOT') || s.includes('REDIRECT')) return 'high';
+    if (s.includes('MEDIUM')) return 'medium';
+    if (s.includes('LOW')) return 'low';
+    return 'unverifiable';
+  })();
+
   return (
-    <div className="app-container">
-      <Header />
+    <>
+      <a href="#main-content" className="skip-to-content">Skip to main content</a>
 
-      <MerchantForm onAnalyze={handleAnalyze} loading={loading} currentSteps={currentSteps} />
+      {/* ── Prototype Banner ── */}
+      <div className="prototype-banner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--amber)', flexShrink: 0 }}>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+        <span>
+          <strong>DECISION-SUPPORT SYSTEM FOR HUMAN RISK ANALYSTS:</strong>{' '}
+          This engine produces explainable empirical visual signals to assist risk reviewers.
+          It <span style={{ textDecoration: 'underline' }}>never</span> automatically rejects merchants.
+        </span>
+      </div>
 
-      {error && (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid #ef4444',
-            color: '#fca5a5',
-            padding: '1rem 1.25rem',
-            borderRadius: '8px',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-          }}
-        >
-          <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
-          <div>
-            <strong>Analysis Notice:</strong> {error}
-          </div>
+      {/* ── Nav Bar ── */}
+      <nav className="nav-bar" aria-label="Main navigation">
+        <span className="nav-wordmark">Evidence Engine</span>
+        <div className="nav-right">
+          <span className="nav-version">v2.4.1</span>
+          <button
+            className="btn-primary"
+            style={{ padding: '0.45rem 1rem', fontSize: '11px' }}
+            onClick={() => { setResult(null); setError(null); setHeroStage(0); setHeadlineIdx(0); setAnalysisStartTs(null); }}
+          >
+            New Analysis
+          </button>
         </div>
-      )}
+      </nav>
 
-      {result && (
-        <ErrorBoundary onReset={() => { setResult(null); setError(null); }}>
-          <RiskCards
-            fusion={result.fusion}
-            claims={result.claims}
-            webDetectionMode={result.web_detection_mode}
-            webDetectionSimulated={result.web_detection_simulated}
+      {/* ── Hero ── */}
+      <section className="hero-section" aria-label="Hero input">
+        <div
+          className="hero-bg"
+          data-stage={heroStage}
+          role="presentation"
+          aria-hidden="true"
+        />
+        <div className="hero-content">
+          <span className="eyebrow">Visual Fraud Intelligence</span>
+
+          {/* Cross-fading headline */}
+          <div className="hero-headline-wrap" aria-live="polite">
+            {HERO_HEADLINES.map((h, i) => (
+              <h1
+                key={i}
+                className={`hero-headline${i === headlineIdx ? ' active' : ''}`}
+                aria-hidden={i !== headlineIdx}
+              >
+                {h}
+              </h1>
+            ))}
+          </div>
+
+          <p style={{ fontFamily: 'Inter', fontSize: '16px', color: 'var(--muted)', maxWidth: '540px', lineHeight: 1.6, marginTop: '-0.25rem' }}>
+            Autonomous crawl, visual discovery, and ViT verification for merchant risk underwriting.
+          </p>
+
+          <HeroInput
+            onAnalyze={handleAnalyze}
+            loading={loading}
+            currentSteps={currentSteps}
+            pipelineStages={PIPELINE_STAGES}
+            getStageStatus={getStageStatus}
+            feedItems={feedItems}
           />
+        </div>
+      </section>
 
-          <ClaimVsEvidence
-            claimsReasoning={result.claims_reasoning}
-            structuredEvidence={result.structured_evidence}
-            claims={result.claims}
-          />
+      {/* ── Persistent Analysis Counter ── */}
+      <AnalysisCounter
+        startTs={analysisStartTs}
+        endTs={analysisEndTs}
+        loading={loading}
+        visible={loading || (result !== null && analysisStartTs !== null)}
+      />
 
-          {fusionEvidence.length > 0 && (
-            <EvidenceFusionCards evidence={fusionEvidence} />
-          )}
+      {/* ── Main Content ── */}
+      <main id="main-content" className="page-container">
 
-          <EvidenceGrid
-            reuse={result.reuse}
-            logo={result.logo}
-            manipulation={result.manipulation}
-            identity={result.identity}
-          />
+        {/* Error state */}
+        {error && (
+          <div
+            className="notice-banner red-notice"
+            role="alert"
+            style={{ marginTop: '2rem' }}
+          >
+            <AlertTriangle size={18} color="var(--risk-red)" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <div className="notice-banner-title">Analysis Notice</div>
+              <div className="notice-banner-body">{error}</div>
+            </div>
+          </div>
+        )}
 
-          <HeatmapViewer result={result} />
-        </ErrorBoundary>
-      )}
+        {/* Results */}
+        {result && (
+          <ErrorBoundary onReset={() => { setResult(null); setError(null); }}>
 
-      <footer
-        style={{
-          marginTop: '3rem',
-          paddingTop: '1.5rem',
-          borderTop: '1px solid #334155',
-          textAlign: 'center',
-          color: '#64748b',
-          fontSize: '0.8rem',
-        }}
-      >
-        <p>🛡️ Visual Risk Intelligence Engine • Razorpay AI Risk Manager</p>
-        <p style={{ marginTop: '0.25rem' }}>
-          Decision Support System for Human Risk Analysts — Never automatically rejects merchants.
+            <div className="section-block" style={{ paddingTop: '3rem' }}>
+              <RiskCards
+                fusion={result.fusion}
+                claims={result.claims}
+                webDetectionMode={result.web_detection_mode}
+                webDetectionSimulated={result.web_detection_simulated}
+              />
+            </div>
+
+            <div className="section-block">
+              <div className="section-header">
+                <span className="eyebrow">Claim Analysis Layer</span>
+                <h2 className="section-headline">Evidence vs. Claim Reasoning</h2>
+                <p className="section-subtext">Does the visual evidence associated with this merchant support or contradict what they claim?</p>
+              </div>
+              <ClaimVsEvidence
+                claimsReasoning={result.claims_reasoning}
+                structuredEvidence={result.structured_evidence}
+                claims={result.claims}
+              />
+            </div>
+
+            {fusionEvidence.length > 0 && (
+              <div className="section-block">
+                <div className="section-header">
+                  <span className="eyebrow">Evidence Fusion Layer</span>
+                  <h2 className="section-headline">Visual Evidence Exhibits</h2>
+                  <p className="section-subtext">
+                    Cross-references each extracted asset across public web discovery sources and platform ViT embeddings.
+                    {' '}<span style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono', fontSize: '13px' }}>
+                      {fusionEvidence.length} exhibits analyzed
+                    </span>
+                  </p>
+                </div>
+                <EvidenceFusionCards evidence={fusionEvidence} />
+              </div>
+            )}
+
+            <div className="section-block">
+              <div className="section-header">
+                <span className="eyebrow">Forensic Signal Breakdown</span>
+                <h2 className="section-headline">Empirical Visual Metrics</h2>
+                <p className="section-subtext">Real-time algorithmic measurements from Vision Transformer embeddings and computer vision filters.</p>
+              </div>
+              <EvidenceGrid
+                reuse={result.reuse}
+                logo={result.logo}
+                manipulation={result.manipulation}
+                identity={result.identity}
+              />
+            </div>
+
+            <div className="section-block">
+              <div className="section-header">
+                <span className="eyebrow">Forensic Deep-Dive</span>
+                <h2 className="section-headline">Analysis Breakdown</h2>
+                <p className="section-subtext">Candidate matches, ELA heatmaps, multimodal audit, backbone provenance and raw JSON export.</p>
+              </div>
+              <HeatmapViewer result={result} />
+            </div>
+
+          </ErrorBoundary>
+        )}
+
+      </main>
+
+      {/* ── Footer ── */}
+      <footer className="site-footer">
+        <span className="footer-wordmark">Evidence Engine</span>
+        <p className="footer-copy">
+          Visual Risk Intelligence · Razorpay AI Risk Manager<br />
+          Decision Support — never automatically rejects merchants.
         </p>
       </footer>
-    </div>
+    </>
   );
 }
