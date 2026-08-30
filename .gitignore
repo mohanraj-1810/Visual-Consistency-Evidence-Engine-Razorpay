@@ -61,7 +61,12 @@ Thumbs.db
 *.swp
 *.swo
 *.bak
+.gemini/
+.agents/
+.cursor/
+.antigravity/
 
 # ── Legacy / Streamlit ──────────────────────────────────
 .streamlit/
+
 

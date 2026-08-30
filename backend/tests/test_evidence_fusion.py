@@ -315,6 +315,71 @@ class TestEvidenceFusion(unittest.TestCase):
         self.assertIsNotNone(fusion.get("visual_risk_score"))
         self.assertIsNotNone(fusion.get("text_risk_score"))
 
+    def test_supplier_catalog_reuse_is_classified_as_low_risk(self):
+        """Verify that image reuse matching a known supplier/wholesale catalog (Alibaba) is not treated as fraud."""
+        from services.evidence_normalizer import is_supplier_domain
+        self.assertTrue(is_supplier_domain("alibaba.com"))
+        self.assertTrue(is_supplier_domain("wholesale.1688.com"))
+        self.assertTrue(is_supplier_domain("aliexpress.com"))
+
+        from scoring.fusion import fuse_risk_scores
+        text_data = {"text_risk_score": 15.0, "signals": {"has_contact": True, "has_policy": True, "has_pricing": True, "has_about": True, "has_social": True}}
+        visual_data = {"visual_risk_score": 25.0}
+        reuse_data = {
+            "max_similarity": 0.88,
+            "reuse_risk_score": 18.0,
+            "is_own_brand_candidate": False,
+            "top_flagged_item": {
+                "source_type": "SUPPLIER_CATALOG",
+                "source_domain": "alibaba.com",
+                "similarity": 0.88,
+            }
+        }
+        logo_data = {"inconsistency_risk": 10.0, "similarity": 0.90}
+        manip_data = {"manipulation_score": 5.0, "synthetic_score": 5.0}
+
+        fusion = fuse_risk_scores(
+            text_risk_data=text_data,
+            visual_risk_data=visual_data,
+            reuse_data=reuse_data,
+            logo_data=logo_data,
+            manipulation_data=manip_data,
+            merchant_name="Boutique Reseller",
+        )
+
+        self.assertLessEqual(fusion["final_risk_score"], 38.0)
+        self.assertEqual(fusion["status"], "LOW")
+        self.assertIn(fusion["status_tier"], ("CLEAR", "LOW"))
+
+    def test_five_tier_classification_boundaries(self):
+        """Verify that score boundaries properly map to the 5 distinct operational tiers."""
+        from scoring.fusion import fuse_risk_scores
+
+        # Low risk tier -> CLEAR or LOW
+        low_res = fuse_risk_scores(
+            text_risk_data={"text_risk_score": 10.0, "signals": {"has_contact": True, "has_policy": True, "has_pricing": True, "has_about": True, "has_social": True}},
+            visual_risk_data={"visual_risk_score": 15.0},
+            reuse_data={"reuse_risk_score": 0.0, "is_own_brand_candidate": True},
+            logo_data={"inconsistency_risk": 0.0},
+            manipulation_data={"manipulation_score": 5.0, "synthetic_score": 5.0},
+            merchant_name="Clean Merchant",
+        )
+        self.assertEqual(low_res["status_tier"], "CLEAR")
+        self.assertEqual(low_res["status"], "LOW")
+
+        # Multi-vector severe fraud -> HIGH (Manual review)
+        high_res = fuse_risk_scores(
+            text_risk_data={"text_risk_score": 75.0, "signals": {"has_contact": False, "has_policy": False, "has_pricing": False, "has_about": False}},
+            visual_risk_data={"visual_risk_score": 90.0},
+            reuse_data={"reuse_risk_score": 95.0, "is_own_brand_candidate": False, "top_flagged_item": {"source_type": "ONLINE", "source_domain": "luxury-brand.com"}},
+            logo_data={"inconsistency_risk": 85.0},
+            manipulation_data={"manipulation_score": 80.0, "synthetic_score": 60.0},
+            merchant_name="Counterfeit Fraudster",
+        )
+        self.assertEqual(high_res["status_tier"], "HIGH")
+        self.assertEqual(high_res["status"], "HIGH")
+        self.assertIn("MANUAL REVIEW", high_res["status_label"])
+
 
 if __name__ == "__main__":
     unittest.main()

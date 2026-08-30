@@ -208,7 +208,7 @@ def run_verification_suite(module_filter: str = "all", verbose: bool = True) -> 
             fusion = fuse_risk_scores(
                 text_risk_data=text_risk,
                 visual_risk_data=vis_risk,
-                reuse_data={"max_similarity": 0.96, "reference_filename": "ref_luxury_watch_omega.jpg", "is_own_brand_candidate": False},
+                reuse_data={"max_similarity": 0.96, "reuse_risk_score": 94.0, "reference_filename": "ref_luxury_watch_omega.jpg", "is_own_brand_candidate": False},
                 logo_data={"similarity": 0.38, "matched_reference": "verified_brand_apex.png"},
                 manipulation_data={"manipulation_score": 75.0},
                 merchant_name="Apex Global Luxury",

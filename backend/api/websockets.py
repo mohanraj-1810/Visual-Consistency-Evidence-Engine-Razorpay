@@ -60,8 +60,14 @@ async def websocket_analysis_endpoint(websocket: WebSocket, job_id: str):
 
     try:
         while True:
-            # Keep connection open until client disconnects or pipeline completes
+            # Keep connection open until client disconnects or pipeline completes; reply to ping heartbeats
             data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "ping":
+                    await websocket.send_text(json.dumps({"type": "pong", "job_id": job_id}))
+            except Exception:
+                pass
     except WebSocketDisconnect:
         pass
     finally:

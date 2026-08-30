@@ -176,16 +176,44 @@ def analyze_multiple_images_reuse(
     max_sim = max(sims) if sims else 0.0
     avg_sim = float(np.mean(sims)) if sims else 0.0
 
-    # Risk score maps 0.0-1.0 similarity nonlinearly to 0-100 risk
-    # High similarity (>0.85) yields risk score 80-100
-    if max_sim >= 0.85:
-        reuse_score = min(100.0, 75.0 + (max_sim - 0.85) / 0.15 * 25.0)
+    # Aggregate similarity signals — a single image can NEVER independently produce HIGH risk.
+    # E1 strong match: similarity >= 0.85 against local reference dataset
+    # E1 moderate match: similarity >= 0.70
+    strong_matches = [s for s in sims if s >= 0.85]
+    moderate_matches = [s for s in sims if s >= 0.70]
+    strong_match_count = len(strong_matches)
+    moderate_match_count = len(moderate_matches)
+
+    top_k = 3
+    sorted_sims = sorted(sims, reverse=True)
+    top_k_sims = sorted_sims[:top_k]
+    top_k_avg_sim = float(np.mean(top_k_sims)) if top_k_sims else 0.0
+
+    # HIGH eligibility requires both: 2+ strong matches AND avg_top_k >= 0.87.
+    # Being "eligible" does NOT auto-assign HIGH — fusion corroboration gate applies on top.
+    high_eligible = (strong_match_count >= 2) and (top_k_avg_sim >= 0.87)
+
+    if high_eligible:
+        # Proportional score: scales from 75 at the eligibility threshold to ~100 at perfect match
+        reuse_score = min(100.0, 75.0 + (top_k_avg_sim - 0.87) / 0.13 * 25.0)
         overall_risk = "HIGH"
-    elif max_sim >= 0.70:
-        reuse_score = 40.0 + (max_sim - 0.70) / 0.15 * 35.0
+    elif strong_match_count >= 2:
+        # 2+ strong matches but avg_top_k below 0.87 — meaningful but not HIGH-eligible
+        reuse_score = min(72.0, 60.0 + (top_k_avg_sim - 0.85) / 0.02 * 12.0)
         overall_risk = "MEDIUM"
+    elif strong_match_count == 1:
+        # Single strong match: proportional score capped at MEDIUM (max 64)
+        # Ensures a single 0.94-sim image stays below HIGH-eligible territory
+        reuse_score = min(64.0, 40.0 + (max_sim - 0.85) / 0.15 * 24.0)
+        overall_risk = "MEDIUM"
+    elif moderate_match_count >= 2:
+        reuse_score = min(50.0, 30.0 + (top_k_avg_sim - 0.70) / 0.15 * 20.0)
+        overall_risk = "MEDIUM"
+    elif moderate_match_count == 1:
+        reuse_score = min(35.0, 20.0 + (max_sim - 0.70) / 0.15 * 15.0)
+        overall_risk = "LOW"
     else:
-        reuse_score = (max_sim / 0.70) * 39.0
+        reuse_score = (max_sim / 0.70) * 20.0 if max_sim > 0 else 0.0
         overall_risk = "LOW"
 
     # Find highest matching item
@@ -194,6 +222,11 @@ def analyze_multiple_images_reuse(
     return {
         "max_similarity": float(max_sim),
         "average_similarity": float(avg_sim),
+        "top_k_similarity": float(top_k_avg_sim),
+        "strong_match_count": strong_match_count,
+        "moderate_match_count": moderate_match_count,
+        "high_eligible": high_eligible,
+        "image_count": len(merchant_images),
         "reuse_risk_score": round(float(reuse_score), 1),
         "risk_level": overall_risk,
         "findings": findings,

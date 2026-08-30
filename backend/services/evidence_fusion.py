@@ -27,6 +27,9 @@ from services.evidence_normalizer import _extract_domain, is_self_referencing_do
 
 
 # Persistent / In-memory local ViT cross-merchant index
+# Stores ONLY embeddings from previously LIVE-crawled merchant websites.
+# Reference catalog images (dataset/reference/) are intentionally NOT included
+# — they are product photography for evaluation, not real merchant comparisons.
 # asset_hash -> {
 #   "embedding": np.ndarray,
 #   "merchant_id": str,
@@ -36,8 +39,8 @@ from services.evidence_normalizer import _extract_domain, is_self_referencing_do
 #   "timestamp": float,
 # }
 _LOCAL_VIT_INDEX: Dict[str, Dict[str, Any]] = {}
-_VIT_STRONG_MATCH_THRESHOLD = 0.88  # Cosine similarity for near-duplicate cross-merchant visual match
-_VIT_MODERATE_MATCH_THRESHOLD = 0.75
+_VIT_STRONG_MATCH_THRESHOLD = 0.92   # Cosine similarity for near-duplicate cross-merchant visual match
+_VIT_MODERATE_MATCH_THRESHOLD = 0.82  # Raised from 0.75 to reduce false positives from embedding collapse
 
 
 def mask_merchant_id(merchant_id: str) -> str:
@@ -51,36 +54,22 @@ def mask_merchant_id(merchant_id: str) -> str:
 
 
 def init_local_vit_index(reference_dir: Optional[str] = None):
-    """Pre-populates local ViT index from initial reference merchant catalog if empty."""
-    global _LOCAL_VIT_INDEX
-    if _LOCAL_VIT_INDEX:
-        return
+    """
+    Previously this pre-populated the local ViT index from dataset/reference/.
+    That caused false positive cross-merchant matches because reference product
+    images (headphones, handbags, watches) are evaluation fixtures, NOT real
+    previously-scanned merchants.
 
-    base_dir = Path(__file__).resolve().parent.parent
-    ref_path = Path(reference_dir) if reference_dir else base_dir / "dataset" / "reference"
-    
-    if not ref_path.exists():
-        return
-
-    valid_exts = {".jpg", ".jpeg", ".png", ".webp"}
-    for idx, f in enumerate(ref_path.iterdir()):
-        if f.is_file() and f.suffix.lower() in valid_exts:
-            try:
-                emb = get_image_embedding(str(f))
-                fake_mch_id = f"mch_prev_{idx+1:03d}"
-                _LOCAL_VIT_INDEX[f.name] = {
-                    "embedding": emb,
-                    "merchant_id": fake_mch_id,
-                    "domain": "catalog-platform.internal",
-                    "asset_url": f"/dataset/reference/{f.name}",
-                    "asset_type": "product_image",
-                    "timestamp": time.time(),
-                }
-            except Exception:
-                continue
+    The local ViT index is now ONLY populated by index_analyzed_assets() after
+    live crawls. It starts empty and builds up organically across real merchant scans.
+    Reference catalog images are used only for batch offline evaluation, not
+    for live evidence matching.
+    """
+    # Intentionally do not pre-load any reference images into the live evidence index.
+    pass
 
 
-# Initialize reference pool
+# Initialize (no-op — index starts empty and builds from live scans only)
 init_local_vit_index()
 
 

@@ -21,6 +21,26 @@ _KNOWN_STOCK_SITES = {
     "unsplash.com", "pexels.com", "stock.adobe.com", "pixabay.com", "dreamstime.com"
 }
 
+# Image aggregators and social image boards — commonly host legitimate product
+# photos. Matching against these sources carries the same LOW evidence weight
+# as stock photography sites and must NOT independently drive HIGH risk.
+_KNOWN_IMAGE_AGGREGATORS = {
+    "pinterest.com", "pinimg.com",
+    "imgur.com",
+    "googleusercontent.com", "ggpht.com",
+    "wikimedia.org", "wikipedia.org",
+    "staticflickr.com", "flickr.com",
+    "instagram.com", "cdninstagram.com",
+    "tumblr.com",
+    "reddit.com", "redd.it",
+}
+
+_KNOWN_SUPPLIER_DOMAINS = {
+    "alibaba.com", "aliexpress.com", "dhgate.com", "made-in-china.com",
+    "1688.com", "taobao.com", "indiamart.com", "tradeindia.com",
+    "globalsources.com", "chinabrands.com", "wholesale7.net", "shein.com", "temu.com"
+}
+
 
 def _extract_domain(url: str) -> str:
     try:
@@ -48,9 +68,24 @@ def is_marketplace_domain(domain: str) -> bool:
 
 
 def is_stock_domain(domain: str) -> bool:
-    """Determines if a domain is a known stock-photography repository."""
+    """Determines if a domain is a known stock-photography repository or image aggregator."""
     clean = domain.lower().replace("www.", "").strip()
-    return any(clean == st or clean.endswith("." + st) for st in _KNOWN_STOCK_SITES)
+    return (
+        any(clean == st or clean.endswith("." + st) for st in _KNOWN_STOCK_SITES)
+        or any(clean == ag or clean.endswith("." + ag) for ag in _KNOWN_IMAGE_AGGREGATORS)
+    )
+
+
+def is_image_aggregator_domain(domain: str) -> bool:
+    """Determines if a domain is a known image aggregator (Pinterest, Imgur, Flickr, etc.)."""
+    clean = domain.lower().replace("www.", "").strip()
+    return any(clean == ag or clean.endswith("." + ag) for ag in _KNOWN_IMAGE_AGGREGATORS)
+
+
+def is_supplier_domain(domain: str) -> bool:
+    """Determines if a domain is a known wholesale / supplier / dropshipping manufacturer catalog."""
+    clean = domain.lower().replace("www.", "").strip()
+    return any(clean == sup or clean.endswith("." + sup) for sup in _KNOWN_SUPPLIER_DOMAINS)
 
 
 def normalize_web_detection_evidence(

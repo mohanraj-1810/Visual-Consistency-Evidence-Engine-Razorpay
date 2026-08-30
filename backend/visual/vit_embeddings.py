@@ -13,11 +13,28 @@ import numpy as np
 from PIL import Image
 from typing import Optional, Union, Dict, Any
 
-# Global cache for model and processor
+# Global cache for model, processor, and computed embeddings
 _MODEL = None
 _PROCESSOR = None
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _FALLBACK_MODEL = None
+_EMBEDDING_CACHE: Dict[str, np.ndarray] = {}
+_MAX_CACHE_SIZE = 512
+
+import hashlib
+
+
+def _get_cache_key(image: Union[Image.Image, str, np.ndarray]) -> Optional[str]:
+    try:
+        if isinstance(image, str):
+            return f"path:{image}"
+        elif isinstance(image, Image.Image):
+            # Fast perceptual hash from dimensions and byte sample
+            byte_sample = image.tobytes()[:2048]
+            return f"pil:{image.size}:{image.mode}:{hashlib.md5(byte_sample).hexdigest()}"
+    except Exception:
+        pass
+    return None
 
 
 def load_vit_model(model_name: str = "google/vit-base-patch16-224"):
@@ -61,6 +78,7 @@ def load_vit_model(model_name: str = "google/vit-base-patch16-224"):
 def get_image_embedding(image: Union[Image.Image, str, np.ndarray]) -> np.ndarray:
     """
     Generate a normalized 1D feature embedding vector for a given image.
+    Uses in-memory LRU caching for high-speed repeated comparisons.
 
     Parameters
     ----------
@@ -70,6 +88,12 @@ def get_image_embedding(image: Union[Image.Image, str, np.ndarray]) -> np.ndarra
     -------
     np.ndarray : L2-normalized 1D feature embedding vector
     """
+    global _EMBEDDING_CACHE
+
+    cache_key = _get_cache_key(image)
+    if cache_key and cache_key in _EMBEDDING_CACHE:
+        return _EMBEDDING_CACHE[cache_key].copy()
+
     if isinstance(image, tuple):
         image = image[0]
     if isinstance(image, str):
@@ -112,6 +136,12 @@ def get_image_embedding(image: Union[Image.Image, str, np.ndarray]) -> np.ndarra
         norm = np.linalg.norm(embedding)
         if norm > 0:
             embedding = embedding / norm
+
+        if cache_key:
+            if len(_EMBEDDING_CACHE) >= _MAX_CACHE_SIZE:
+                _EMBEDDING_CACHE.pop(next(iter(_EMBEDDING_CACHE)))
+            _EMBEDDING_CACHE[cache_key] = embedding.copy()
+
         return embedding
 
     except Exception as e:
@@ -121,7 +151,14 @@ def get_image_embedding(image: Union[Image.Image, str, np.ndarray]) -> np.ndarra
         hist, _ = np.histogramdd(arr.reshape(-1, 3), bins=(8, 8, 8), range=((0, 1), (0, 1), (0, 1)))
         vec = hist.flatten()
         norm = np.linalg.norm(vec)
-        return vec / (norm + 1e-9)
+        res = vec / (norm + 1e-9)
+
+        if cache_key:
+            if len(_EMBEDDING_CACHE) >= _MAX_CACHE_SIZE:
+                _EMBEDDING_CACHE.pop(next(iter(_EMBEDDING_CACHE)))
+            _EMBEDDING_CACHE[cache_key] = res.copy()
+
+        return res
 
 
 def compute_cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:

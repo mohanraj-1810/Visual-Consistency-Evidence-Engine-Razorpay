@@ -52,11 +52,15 @@ export default function RiskCards({ fusion, claims, webDetectionMode, webDetecti
     ? '#3b82f6'
     : isBotBlocked
     ? '#6366f1'
-    : scoreVal >= 70
-    ? '#f43f5e'
-    : scoreVal >= 40
-    ? '#f59e0b'
-    : '#10b981';
+    : scoreVal >= 80
+    ? '#dc2626'
+    : scoreVal >= 65
+    ? '#f97316'
+    : scoreVal >= 50
+    ? '#d97706'
+    : scoreVal >= 30
+    ? '#10b981'
+    : '#16a34a';
 
   return (
     <div style={{ marginBottom: '2.5rem' }}>
@@ -354,7 +358,9 @@ export default function RiskCards({ fusion, claims, webDetectionMode, webDetecti
             <Activity size={16} color="#c084fc" />
           </div>
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#c084fc', fontFamily: 'JetBrains Mono' }}>
-            {isAnyUnverifiable || fusion.identity_coherence == null ? 'N/A' : `${Math.round(fusion.identity_coherence * 100)}%`}
+            {isAnyUnverifiable || fusion.identity_coherence == null
+              ? 'N/A'
+              : `${Math.round(fusion.identity_coherence > 1.0 ? fusion.identity_coherence : fusion.identity_coherence * 100)}%`}
           </div>
           <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.35rem' }}>
             Cross-product visual style consistency

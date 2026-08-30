@@ -15,6 +15,10 @@ def calculate_text_business_risk(crawler_data: Optional[Dict[str, Any]] = None) 
     Calculate Merchant Text / Business Risk (0-100).
     Evaluates presence of contact details, policies, about info, pricing.
     If the crawl failed or website was unreachable, returns an UNVERIFIABLE state.
+
+    Non-ecommerce site categories (FINTECH_PAYMENTS, SAAS_SOFTWARE,
+    INFORMATIONAL_INSTITUTION) are never penalised for missing pricing —
+    these sites legitimately do not expose per-product prices.
     """
     if crawler_data is not None and (crawler_data.get("crawl_successful") is False or crawler_data.get("error")):
         crawl_err = crawler_data.get("error") or "Merchant website could not be reached"
@@ -59,11 +63,17 @@ def calculate_text_business_risk(crawler_data: Optional[Dict[str, Any]] = None) 
     has_about = crawler_data.get("has_about", False)
     social_links = crawler_data.get("social_links", [])
 
+    # Detect site category — non-retail platforms are NOT penalised for missing pricing
+    page_class = crawler_data.get("page_classification") or {}
+    site_cat = page_class.get("site_category", "GENERAL_WEBSITE") if isinstance(page_class, dict) else "GENERAL_WEBSITE"
+    is_non_retail = site_cat in ("FINTECH_PAYMENTS", "SAAS_SOFTWARE", "INFORMATIONAL_INSTITUTION")
+
     if not has_contact:
         score += 25.0
     if not has_policy:
         score += 20.0
-    if not has_pricing:
+    # Only penalise missing pricing for actual e-commerce / retail storefronts
+    if not has_pricing and not is_non_retail:
         score += 15.0
     if not has_about:
         score += 5.0
@@ -84,6 +94,7 @@ def calculate_text_business_risk(crawler_data: Optional[Dict[str, Any]] = None) 
         "crawl_status": "SUCCESS",
         "crawl_successful": True,
         "is_unverifiable": False,
+        "site_category": site_cat,
         "summary": (
             "Merchant profile displays standard textual compliance and disclosures."
             if score < 40
@@ -231,34 +242,118 @@ def fuse_risk_scores(
     text_score = float(text_risk_data.get("text_risk_score", 18.0))
     visual_score = float(visual_risk_data.get("visual_risk_score", 20.0))
 
+    # Non-retail platforms (fintech, SaaS, institutions) must not be driven into
+    # HIGH risk purely by a high text_score — their missing 'pricing' signal is
+    # expected and was already exempted in text scoring.  Cap the fusion weight of
+    # text risk for these categories so visual evidence is the dominant driver.
+    site_cat = text_risk_data.get("site_category", "GENERAL_WEBSITE")
+    is_non_retail = site_cat in ("FINTECH_PAYMENTS", "SAAS_SOFTWARE", "INFORMATIONAL_INSTITUTION")
+
+    # Base weighted linear combination
     if visual_score >= 70.0:
-        # High visual evidence contradictions override text facade
-        final_score = max(visual_score, 0.15 * text_score + 0.85 * visual_score)
+        raw_fusion = max(visual_score, 0.15 * text_score + 0.85 * visual_score)
     elif visual_score >= 40.0:
-        final_score = 0.30 * text_score + 0.70 * visual_score
-    elif text_score >= 70.0:
-        # Severe textual deficiencies (placeholder site / missing compliance disclosures)
-        final_score = max(45.0, 0.55 * text_score + 0.45 * visual_score)
+        raw_fusion = 0.30 * text_score + 0.70 * visual_score
+    elif text_score >= 70.0 and not is_non_retail:
+        raw_fusion = max(45.0, 0.55 * text_score + 0.45 * visual_score)
     else:
-        final_score = 0.35 * text_score + 0.65 * visual_score
+        raw_fusion = 0.35 * text_score + 0.65 * visual_score
 
-    final_score = round(float(max(0.0, min(100.0, final_score))), 1)
+    # Trust signals reduction for verified compliance, social presence, and platforms
+    trust_deduction = 0.0
+    signals = text_risk_data.get("signals", {})
+    if signals.get("has_contact") and signals.get("has_policy") and signals.get("has_about"):
+        trust_deduction += 5.0
+    if signals.get("has_social"):
+        trust_deduction += 3.0
+    if is_non_retail:
+        trust_deduction += 8.0
 
-    # Classification & workflow recommendation
-    if final_score >= 70.0:
+    fused_score = max(5.0, raw_fusion - trust_deduction)
+
+    # ── Corroboration Gate for Escalation to MANUAL REVIEW (HIGH) ──────────────
+    # A merchant should ONLY be routed to Senior Risk Operations (HIGH) if AT LEAST TWO
+    # independent risk signals corroborate visual or compliance fraud.
+    # Single isolated anomalies (e.g. supplier stock catalog photo or marketing ELA)
+    # are routed to automated document requests or conditional approval instead.
+    cand_src_type = reuse_data.get("top_flagged_item", {}).get("source_type") if reuse_data.get("top_flagged_item") else "NONE"
+    is_supplier_cand = cand_src_type in ("SUPPLIER_CATALOG", "MARKETPLACE")
+
+    reuse_val = float(reuse_data.get("reuse_risk_score", 0.0))
+    logo_val = float(logo_data.get("inconsistency_risk", 0.0))
+    manip_val = float(manipulation_data.get("manipulation_score", 0.0))
+    evidence_status = reuse_data.get("match_status", "NO_DATA")
+
+    # Evaluate independent severe flags.
+    # IMPORTANT: INSUFFICIENT_EVIDENCE match status means a single/unreliable
+    # external match was found — this does NOT count as a severe corroboration signal.
+    reuse_is_severe = (
+        reuse_val >= 70.0
+        and not is_supplier_cand
+        and evidence_status not in ("INSUFFICIENT_EVIDENCE", "WEAK_MATCH", "NO_EXTERNAL_MATCH")
+    )
+
+    severe_signals = 0
+    if reuse_is_severe:
+        severe_signals += 1
+    if logo_val >= 60.0:
+        severe_signals += 1
+    if manip_val >= 60.0:
+        severe_signals += 1
+    if text_score >= 65.0 and not is_non_retail:
+        severe_signals += 1
+
+    # Corroboration enforcement
+    if severe_signals >= 2:
+        # Corroborated multi-vector risk: elevate to true HIGH
+        final_score = max(80.0, fused_score)
+    elif severe_signals == 1 and reuse_val >= 88.0 and not is_supplier_cand:
+        # Single near-duplicate match against external brand catalog
+        final_score = min(74.0, max(55.0, fused_score))
+    elif reuse_val == 0.0 or is_supplier_cand:
+        # Unique assets or supplier/dropship catalog: cap risk
+        final_score = min(fused_score, 38.0 if is_supplier_cand else 32.0)
+    else:
+        # Single isolated anomaly: cap at MEDIUM to avoid unnecessary manual escalations
+        final_score = min(64.0, fused_score)
+
+    final_score = round(float(max(5.0, min(100.0, final_score))), 1)
+
+    # ── 5-Tier Actionable Classification Model ────────────────────────────────
+    # Tier 1 (0–29): CLEAR (Auto-Approve)
+    # Tier 2 (30–49): LOW (Standard Onboarding)
+    # Tier 3 (50–64): MEDIUM (Enhanced Verification — automated document request)
+    # Tier 4 (65–79): ELEVATED (Conditional Approval — 90-day monitoring)
+    # Tier 5 (80–100): HIGH (Manual Review Escalation)
+    if final_score >= 80.0:
         status = "HIGH"
+        status_tier = "HIGH"
         status_label = "HIGH — MANUAL REVIEW"
         recommendation = "Route to Senior Risk Operations for manual visual evidence audit."
         badge_color = "#dc2626"
-    elif final_score >= 40.0:
+    elif final_score >= 65.0:
         status = "MEDIUM"
-        status_label = "MEDIUM — ADDITIONAL VERIFICATION"
-        recommendation = "Request merchant brand authorization documentation and high-resolution inventory proof."
+        status_tier = "ELEVATED"
+        status_label = "ELEVATED — CONDITIONAL APPROVAL"
+        recommendation = "Conditional approval with 90-day enhanced risk monitoring and inventory invoice audit."
+        badge_color = "#f97316"
+    elif final_score >= 50.0:
+        status = "MEDIUM"
+        status_tier = "MEDIUM"
+        status_label = "MEDIUM — ENHANCED VERIFICATION"
+        recommendation = "Request merchant supplier invoices or distributor authorization documentation."
         badge_color = "#d97706"
+    elif final_score >= 30.0:
+        status = "LOW"
+        status_tier = "LOW"
+        status_label = "LOW — STANDARD ONBOARDING"
+        recommendation = "Standard merchant onboarding; basic statutory identity validation."
+        badge_color = "#10b981"
     else:
         status = "LOW"
-        status_label = "LOW — NORMAL ONBOARDING"
-        recommendation = "Standard merchant onboarding flow; automated monitoring enabled."
+        status_tier = "CLEAR"
+        status_label = "CLEAR — AUTO-APPROVE"
+        recommendation = "Standard merchant onboarding flow; automated real-time transaction monitoring enabled."
         badge_color = "#16a34a"
 
     # Generate explainability bullets
@@ -313,6 +408,53 @@ def fuse_risk_scores(
         reasons.append("Visual evidence is internally consistent and matches claimed merchant branding.")
         reasons.append("No document tampering, forensic anomalies, or deceptive signals detected.")
 
+    # Generate human-readable risk explanation
+    if status == "HIGH":
+        risk_explanation = (
+            "Repeated strong visual matches were detected across multiple merchant assets "
+            "and corroborated by independent external evidence."
+        )
+    elif status_tier == "ELEVATED":
+        risk_explanation = (
+            "Multiple visual anomalies were detected across independent signals. "
+            "Evidence is meaningful but conditional approval with monitoring is recommended."
+        )
+    elif status == "MEDIUM":
+        risk_explanation = (
+            "Multiple visual similarities were detected, but the evidence is insufficient "
+            "to establish meaningful reuse — enhanced verification recommended."
+        )
+    else:
+        if evidence_status == "INSUFFICIENT_EVIDENCE":
+            risk_explanation = (
+                "One isolated visual similarity was detected, but no corroborating external "
+                "evidence was found. Further human investigation may be warranted."
+            )
+        else:
+            risk_explanation = (
+                "No significant visual anomalies detected. Visual content appears "
+                "consistent and proprietary to this merchant."
+            )
+
+    debug_metrics = {
+        "image_count": reuse_data.get("image_count", 0),
+        "average_similarity": round(float(reuse_data.get("average_similarity", 0.0)), 4),
+        "max_similarity": round(float(max_sim), 4),
+        "top_k_similarity": round(float(reuse_data.get("top_k_similarity", 0.0)), 4),
+        "strong_match_count": reuse_data.get("strong_match_count", 0),
+        "moderate_match_count": reuse_data.get("moderate_match_count", 0),
+        "matched_domains": top_cand.get("matched_domains", [top_cand.get("source_domain")]) if top_cand else [],
+        "E1_score": round(float(visual_risk_data.get("E1_score", reuse_data.get("reuse_risk_score", 0.0))), 1),
+        "E4_score": round(float(reuse_data.get("e4_score", 0.0)), 1),
+        "logo_score": round(float(logo_val), 1),
+        "manipulation_score": round(float(manip_val), 1),
+        "identity_score": round(float(coherence_val), 1),
+        "visual_score": round(float(visual_score), 1),
+        "final_score": round(float(final_score), 1),
+        "final_risk_level": status,
+        "evidence_status": evidence_status,
+    }
+
     return {
         "final_risk_score": final_score,
         "text_risk_score": text_score,
@@ -320,10 +462,13 @@ def fuse_risk_scores(
         "identity_coherence": round(float(coherence_val), 1),
         "tampering_score": round(float(manip_score), 1),
         "status": status,
+        "status_tier": status_tier,
         "status_label": status_label,
         "recommendation": recommendation,
         "badge_color": badge_color,
         "reasons": reasons,
+        "risk_explanation": risk_explanation,
         "merchant_name": merchant_name,
         "is_unverifiable": False,
+        "debug_metrics": debug_metrics,
     }

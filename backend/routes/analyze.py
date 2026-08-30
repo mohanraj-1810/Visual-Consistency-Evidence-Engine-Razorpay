@@ -167,10 +167,14 @@ def run_pipeline(
     prefer_online_discovery: bool = True,
     search_hints: Optional[List[str]] = None,
     test_fixture_dir: Optional[Union[str, Path]] = None,
+    skip_forensics: bool = False,
 ) -> Dict[str, Any]:
     """
     Executes explainable multimodal visual risk analysis across extracted merchant assets.
     Production strictly searches online candidate evidence.
+
+    If skip_forensics=True (no real product images extracted), manipulation/ELA
+    analysis is bypassed entirely to avoid false positives from placeholder images.
     """
     # 1. Warm model
     load_vit_model()
@@ -280,12 +284,20 @@ def run_pipeline(
         max_sim = highest_local_vit_sim
         is_own_brand = False
 
+    cand_src_type = top_online_cand.get("source_type", "NONE") if top_online_cand else "NONE"
+
     if not is_own_brand and max_sim >= 0.70:
-        if max_sim >= 0.85:
-            reuse_score = min(100.0, 75.0 + (max_sim - 0.85) / 0.15 * 25.0)
+        if cand_src_type == "SUPPLIER_CATALOG":
+            reuse_score = min(20.0, 10.0 + (max_sim - 0.70) * 30.0)
+            reuse_risk_level = "LOW"
+        elif cand_src_type == "MARKETPLACE" and max_sim < 0.95:
+            reuse_score = min(35.0, 15.0 + (max_sim - 0.70) * 40.0)
+            reuse_risk_level = "LOW"
+        elif max_sim >= 0.88:
+            reuse_score = min(100.0, 75.0 + (max_sim - 0.88) / 0.12 * 25.0)
             reuse_risk_level = "HIGH"
         else:
-            reuse_score = 40.0 + (max_sim - 0.70) / 0.15 * 35.0
+            reuse_score = 40.0 + (max_sim - 0.70) / 0.18 * 35.0
             reuse_risk_level = "MEDIUM"
     else:
         reuse_score = 0.0
@@ -352,9 +364,13 @@ def run_pipeline(
     reuse_data = {
         "max_similarity": float(max_sim),
         "reuse_risk_score": round(float(reuse_score), 1),
+        "e4_score": float(verified_candidates_res.get("e4_score", 0.0)),
         "risk_level": reuse_risk_level,
         "is_own_brand_candidate": is_own_brand,
         "match_status": match_status_val,
+        "strong_match_count": verified_candidates_res.get("strong_match_count", 0),
+        "moderate_match_count": verified_candidates_res.get("moderate_match_count", 0),
+        "image_count": len(product_images),
         "top_flagged_item": clean_top_flagged,
         "findings": clean_findings,
     }
@@ -378,8 +394,10 @@ def run_pipeline(
         }
 
     # 6. Manipulation & Forensic Heatmap Engine
+    # Skip forensics entirely when only a placeholder image is available (no real product images)
+    # to prevent marketing/UI graphics from producing meaningless manipulation scores.
     target_forensic_img = document_image if document_image is not None else (product_images[0] if product_images else None)
-    if target_forensic_img is not None:
+    if target_forensic_img is not None and not skip_forensics:
         manip_data = analyze_image_manipulation(target_forensic_img)
         heatmap_overlay = generate_forensic_heatmap(
             target_forensic_img,
@@ -396,7 +414,7 @@ def run_pipeline(
             "synthetic_score": 5.0,
             "synthetic_desc": "No forensic anomalies observed.",
             "suspicious_regions": [],
-            "explanation": "No forensic anomalies observed.",
+            "explanation": "No forensic anomalies observed." if not skip_forensics else "Forensic analysis skipped — no product images extracted from merchant site.",
         }
         heatmap_overlay = np.zeros((100, 100, 3), dtype=np.uint8)
 
@@ -694,10 +712,14 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         if logo_res is not None:
             logo_image = logo_res[0]
 
-    # If site is live but has no product images, create placeholder for analysis
+    # If site is live but has no product images, skip visual pipeline —
+    # running ELA forensics on a placeholder produces meaningless manipulation scores.
     if not product_images:
         dummy_img = Image.new("RGB", (300, 300), (240, 243, 246))
         product_images = [dummy_img]
+        _no_real_product_images = True
+    else:
+        _no_real_product_images = False
 
     if progress_callback:
         progress_callback("search", "Searching public online sources for visual candidate evidence...")
@@ -752,6 +774,7 @@ def execute_website_analysis(url: str, progress_callback=None) -> Dict[str, Any]
         prefer_online_discovery=True,
         search_hints=search_hints,
         test_fixture_dir=None,  # No local dataset in production!
+        skip_forensics=_no_real_product_images,
     )
 
     if progress_callback:

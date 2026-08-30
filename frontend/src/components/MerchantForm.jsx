@@ -16,10 +16,11 @@ const ANALYSIS_STEPS = [
 ];
 
 const SAMPLE_URLS = [
-  { name: 'Artisan Pottery (Clean)', url: 'https://example.com' },
-  { name: 'Live Web Test', url: 'https://httpbin.org' },
-  { name: 'Stripe Brand Asset', url: 'https://en.wikipedia.org/wiki/Stripe,_Inc.' },
-  { name: 'Razorpay Platform', url: 'https://razorpay.com' },
+  { name: '🟢 Standard Storefront (Clean)', url: 'https://example.com', description: 'Baseline standard web entity' },
+  { name: '🟣 Anti-Bot Protected (WAF 403)', url: 'https://www.etsy.com', description: 'Anti-bot Cloudflare/WAF protected site' },
+  { name: '🟡 Redirect Loop (Safety Limit)', url: 'https://httpbin.org/redirect/5', description: 'Exceeds 3-hop safety redirect limit' },
+  { name: '🔵 Fintech Platform (Razorpay)', url: 'https://razorpay.com', description: 'Fintech & payment infrastructure brand platform' },
+  { name: '⚪ Dead Domain (Unverifiable)', url: 'https://nonexistent-store-fake-12345.com', description: 'DNS failure / unreachable host' },
 ];
 
 export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) {
@@ -56,6 +57,12 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
     }
   };
 
+  // Compute progress percentage
+  const completedCount = ANALYSIS_STEPS.filter(
+    (s) => currentSteps[s.id] === 'completed' || currentSteps[s.id] === 'done' || currentSteps.all_done
+  ).length;
+  const progressPct = currentSteps.all_done ? 100 : Math.round((completedCount / ANALYSIS_STEPS.length) * 100);
+
   return (
     <div className="card" style={{ marginBottom: '2rem', padding: '1.75rem' }}>
       <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
@@ -78,7 +85,7 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
               Merchant Visual Risk Underwriting
             </div>
             <div style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 400 }}>
-              Automated crawling, online evidence discovery, and ViT cosine verification
+              Automated crawling, online candidate discovery, and ViT cosine verification
             </div>
           </div>
         </div>
@@ -198,15 +205,16 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
           </div>
         </div>
 
-        {/* Quick Sample Selector Pills */}
+        {/* Quick Sample Selector Pills with Archetype Badges */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-          <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Quick test targets:</span>
+          <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Test Archetypes:</span>
           {SAMPLE_URLS.map((sample, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => handleSelectSample(sample.url)}
               className="preset-chip"
+              title={sample.description}
               style={{
                 borderColor: url === sample.url ? '#3b82f6' : undefined,
                 background: url === sample.url ? 'rgba(59, 130, 246, 0.15)' : undefined,
@@ -226,18 +234,30 @@ export default function MerchantForm({ onAnalyze, loading, currentSteps = {} }) 
           style={{
             marginTop: '1.75rem',
             padding: '1.25rem 1.5rem',
-            background: 'rgba(14, 15, 20, 0.9)',
+            background: 'rgba(14, 15, 20, 0.95)',
             border: '1px solid #23242e',
             borderRadius: '12px',
             backdropFilter: 'blur(16px)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span className="pulse-dot blue"></span>
-              <strong style={{ fontSize: '0.9rem', color: '#60a5fa' }}>Autonomous Analysis Pipeline In Progress...</strong>
+              <strong style={{ fontSize: '0.9rem', color: '#60a5fa' }}>Autonomous Analysis Pipeline Streaming ({progressPct}%)</strong>
             </div>
-            <span className="data-chip">ViT Engine Active</span>
+            <span className="data-chip highlight">ViT Engine & Serper Discovery</span>
+          </div>
+
+          {/* Smooth Gradient Progress Bar */}
+          <div style={{ background: '#1c1e28', height: '6px', borderRadius: '3px', overflow: 'hidden', marginBottom: '1.25rem' }}>
+            <div
+              style={{
+                width: `${Math.max(5, progressPct)}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #10b981 100%)',
+                transition: 'width 0.4s ease',
+              }}
+            />
           </div>
 
           <div

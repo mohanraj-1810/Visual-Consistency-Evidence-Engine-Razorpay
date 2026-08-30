@@ -38,12 +38,24 @@ class JobManager:
     """Manages creation, execution, and event subscription of visual risk analysis jobs."""
 
     @staticmethod
+    def _cleanup_stale_jobs(ttl_seconds: int = 3600):
+        """Evicts jobs older than TTL to manage memory efficiently."""
+        now = time.time()
+        stale_ids = [
+            jid for jid, j in _JOB_STORE.items()
+            if now - j.get("created_at", now) > ttl_seconds and j.get("status") in ("COMPLETED", "FAILED")
+        ]
+        for jid in stale_ids:
+            _JOB_STORE.pop(jid, None)
+
+    @staticmethod
     def create_job(
         merchant_id: str,
         website_url: str,
         claimed_brand: Optional[str] = None,
         merchant_category: Optional[str] = "general",
     ) -> str:
+        JobManager._cleanup_stale_jobs()
         job_id = f"job_{uuid.uuid4().hex[:10]}"
         _JOB_STORE[job_id] = {
             "job_id": job_id,

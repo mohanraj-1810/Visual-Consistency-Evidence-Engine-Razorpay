@@ -2,7 +2,9 @@
 visual_score.py — Visual Risk Scoring Engine.
 Aggregates individual visual module signals into a calibrated Visual Risk Score (0-100)
 using weighted baseline metrics and multi-signal corroboration.
-Correctly handles own-brand unique visuals without falsely penalizing them.
+
+E1 (Local Reference Reuse) and E4 (Serper External Evidence) are computed independently
+and kept separate throughout scoring. Neither alone can produce HIGH risk.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ WEIGHTS = {
     "image_reuse": 0.40,         # 40% — Stolen / scraped catalog photos (strongest signal)
     "logo_inconsistency": 0.15,   # 15% — Discrepancy with verified brand logo
     "manipulation": 0.25,         # 25% — ELA / splicing / editing indicators
-    "synthetic_signal": 0.08,     # 8% — AI generation / diffusion indicators
+    "synthetic_signal": 0.08,     # 8%  — AI generation / diffusion indicators
     "identity_dispersion": 0.12,  # 12% — Cross-image visual identity coherence
 }
 
@@ -30,32 +32,45 @@ def calculate_visual_risk_score(
     """
     Calculate composite Visual Risk Score from individual module outputs.
 
-    Uses Multi-Signal Corroboration:
-    When multiple independent visual dimensions (reuse, logo, manipulation)
-    exhibit elevated risk, the corroborating evidence reinforces risk level,
-    preventing linear dilution from misclassifying high-risk merchants as medium.
+    E1/E4 Separation Principle:
+    - E1_score is derived exclusively from local reference-dataset reuse signals.
+    - E4_score is derived exclusively from Serper external candidate evidence
+      (verify_candidates_with_vit output, 'e4_score' field).
+    - These are NEVER cross-contaminated.
+
+    Corroboration Principle:
+    - A single isolated anomaly (E1 alone, E4 alone, manipulation alone)
+      CANNOT independently produce HIGH visual risk.
+    - HIGH visual risk requires 2+ independent severe signals.
 
     Own-Brand Principle:
-    When no external candidate matches exist (own-brand / unique products),
-    reuse_risk is 0, ensuring original merchant products are never penalized.
-
-    Parameters
-    ----------
-    reuse_data : Output from analyze_multiple_images_reuse, verifier, or analyze_image_reuse
-    logo_data : Output from check_logo_consistency
-    manipulation_data : Output from analyze_image_manipulation
-    cross_identity_coherence : Score measuring internal visual catalog consistency
-
-    Returns
-    -------
-    dict with breakdown, final visual_risk_score (0-100), risk_level, and audit trail
+    - When no external/reference matches exist, reuse risk = 0.
     """
-    # 1. Image reuse risk (0-100)
-    # If no external match is found or marked as own-brand, reuse risk is 0
-    if reuse_data.get("is_own_brand_candidate", False) or reuse_data.get("match_status") == "NO_EXTERNAL_MATCH":
-        reuse_risk = 0.0
+    match_status = reuse_data.get("match_status", "")
+    is_own_brand = reuse_data.get("is_own_brand_candidate", False)
+
+    # ── E1: Local/Reference Reuse Signal ─────────────────────────────────────
+    # Derived ONLY from local reference dataset comparisons (image_reuse.py).
+    # Never populated from Serper/external search results.
+    if is_own_brand or match_status in ("NO_EXTERNAL_MATCH", ""):
+        E1_score = 0.0
+    elif match_status == "INSUFFICIENT_EVIDENCE":
+        raw_e1 = float(reuse_data.get("reuse_risk_score", 0.0))
+        E1_score = min(35.0, raw_e1)
+    elif match_status == "WEAK_MATCH":
+        raw_e1 = float(reuse_data.get("reuse_risk_score", 0.0))
+        E1_score = min(25.0, raw_e1)
     else:
-        reuse_risk = float(reuse_data.get("reuse_risk_score", reuse_data.get("similarity", 0.0) * 100.0))
+        # CORROBORATED_EXTERNAL_MATCH or legacy local fixture (unlabelled)
+        E1_score = float(reuse_data.get("reuse_risk_score", 0.0))
+
+    # ── E4: Serper External Evidence Signal ───────────────────────────────────
+    # Derived ONLY from verify_candidates_with_vit output ('e4_score' field).
+    # Already calibrated: INSUFFICIENT_EVIDENCE<=35, soft-trust-only<=20, CORROBORATED<=80.
+    E4_score = float(reuse_data.get("e4_score", 0.0))
+
+    # Combined reuse risk = max(E1, E4) — avoids double-counting while surfacing dominant signal
+    reuse_risk = max(E1_score, E4_score)
 
     # 2. Logo inconsistency risk (0-100)
     logo_inconsistency_risk = float(logo_data.get("inconsistency_risk", 0.0))
@@ -78,30 +93,28 @@ def calculate_visual_risk_score(
         + WEIGHTS["identity_dispersion"] * identity_dispersion_risk
     )
 
-    # ── Multi-Signal Corroboration Engine ─────────────────────────────────────
-    # Evaluate severe (>65) and moderate (>40) independent flags
+    # ── Multi-Signal Corroboration Engine ──────────────────────────────────────
+    # Only amplify when 2+ independent primary signals are severe (>=65).
+    # A single severe signal does NOT get amplified — fusion enforces that gate.
     primary_signals = [reuse_risk, logo_inconsistency_risk, manipulation_risk]
     severe_flags = [s for s in primary_signals if s >= 65.0]
     moderate_flags = [s for s in primary_signals if s >= 40.0]
 
-    # If 2 or more independent visual signals are severe (e.g. reuse + logo or reuse + manipulation),
-    # corroboration ensures the risk reflects multiple independent contradictions
     if len(severe_flags) >= 2:
-        # Corroborated high risk: top signals dominate
         corroborated_score = 0.55 * max(primary_signals) + 0.35 * sorted(primary_signals, reverse=True)[1] + 0.10 * linear_base
         composite_score = max(linear_base, corroborated_score)
     elif len(severe_flags) == 1 and len(moderate_flags) >= 2:
         corroborated_score = 0.45 * max(primary_signals) + 0.30 * sorted(primary_signals, reverse=True)[1] + 0.25 * linear_base
         composite_score = max(linear_base, corroborated_score)
-    elif len(severe_flags) == 1 and max(primary_signals) >= 80.0:
-        # Single very severe signal (e.g. 94% external image match)
-        composite_score = max(linear_base, 0.65 * max(primary_signals) + 0.35 * linear_base)
     else:
+        # Single signal or no severe flags: no amplification
         composite_score = linear_base
 
-    # Guard: if reuse_risk is 0 and manipulation is low, cap visual risk to prevent false HIGH
-    if reuse_risk == 0.0 and manipulation_risk < 35.0 and logo_inconsistency_risk < 50.0:
+    # Guard: if no reuse evidence AND no meaningful logo anomaly, cap at LOW.
+    if reuse_risk == 0.0 and logo_inconsistency_risk < 50.0:
         composite_score = min(composite_score, 38.0)
+    elif reuse_risk == 0.0 and manipulation_risk < 35.0 and logo_inconsistency_risk < 50.0:
+        composite_score = min(composite_score, 28.0)
 
     visual_risk_score = round(float(max(0.0, min(100.0, composite_score))), 1)
 
@@ -117,12 +130,24 @@ def calculate_visual_risk_score(
         "risk_level": risk_level,
         "weights": WEIGHTS,
         "corroboration_active": len(severe_flags) >= 2,
+        "E1_score": round(E1_score, 1),
+        "E4_score": round(E4_score, 1),
         "breakdown": {
+            "E1_local_reuse": {
+                "score": round(E1_score, 1),
+                "label": "E1 — Local Reference Reuse",
+                "note": "Local/reference dataset similarity evidence only",
+            },
+            "E4_external_evidence": {
+                "score": round(E4_score, 1),
+                "label": "E4 — Serper External Evidence",
+                "note": "Calibrated score from external candidate verification (not raw ViT similarity)",
+            },
             "image_reuse": {
                 "score": round(reuse_risk, 1),
                 "weight": WEIGHTS["image_reuse"],
                 "weighted_contribution": round(reuse_risk * WEIGHTS["image_reuse"], 1),
-                "label": "Image Reuse Risk",
+                "label": "Image Reuse Risk (max of E1, E4)",
             },
             "logo_inconsistency": {
                 "score": round(logo_inconsistency_risk, 1),
@@ -150,3 +175,4 @@ def calculate_visual_risk_score(
             },
         },
     }
+
