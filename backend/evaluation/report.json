@@ -1,0 +1,298 @@
+{
+  "evaluation_timestamp": "2026-08-31T14:31:02Z",
+  "dataset_root": "D:\\razorpay\\backend\\dataset\\eval_set",
+  "total_cases": 23,
+  "evaluation_mode": "FULL_EXTENDED_BENCHMARK_23_CASES",
+  "summary": {
+    "Baseline 1: dHash Only": {
+      "accuracy": 0.3913,
+      "precision_macro": 0.3333,
+      "recall_macro": 0.3519,
+      "f1_macro": 0.2967,
+      "false_positive_rate": 0.8333,
+      "false_negative_rate": 0.0
+    },
+    "Baseline 2: ViT-Only": {
+      "accuracy": 0.5652,
+      "precision_macro": 0.4048,
+      "recall_macro": 0.5741,
+      "f1_macro": 0.4697,
+      "false_positive_rate": 0.1667,
+      "false_negative_rate": 0.1111
+    },
+    "Baseline 3: ViT + dHash Ensemble": {
+      "accuracy": 0.3913,
+      "precision_macro": 0.3333,
+      "recall_macro": 0.3519,
+      "f1_macro": 0.2967,
+      "false_positive_rate": 0.8333,
+      "false_negative_rate": 0.0
+    },
+    "Final System: Full Multimodal Pipeline": {
+      "accuracy": 0.2609,
+      "precision_macro": 0.0952,
+      "recall_macro": 0.3333,
+      "f1_macro": 0.1481,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.7778
+    }
+  },
+  "method_metrics": {
+    "Baseline 1: dHash Only": {
+      "total_cases": 23,
+      "correct_cases": 9,
+      "accuracy": 0.3913,
+      "accuracy_pct": 39.13,
+      "precision_macro": 0.3333,
+      "recall_macro": 0.3519,
+      "f1_macro": 0.2967,
+      "precision_weighted": 0.3261,
+      "recall_weighted": 0.3913,
+      "f1_weighted": 0.3157,
+      "false_positive_rate": 0.8333,
+      "false_positive_rate_pct": 83.33,
+      "clean_fp_count": 5,
+      "clean_total": 6,
+      "false_negative_rate": 0.0,
+      "false_negative_rate_pct": 0.0,
+      "suspicious_fn_count": 0,
+      "suspicious_total": 9,
+      "per_class_metrics": {
+        "LOW": {
+          "precision": 0.5,
+          "recall": 0.16666666666666666,
+          "f1-score": 0.25,
+          "support": 6.0
+        },
+        "MEDIUM": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 8.0
+        },
+        "HIGH": {
+          "precision": 0.5,
+          "recall": 0.8888888888888888,
+          "f1-score": 0.64,
+          "support": 9.0
+        }
+      },
+      "confusion_matrix": {
+        "labels": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ],
+        "matrix": [
+          [
+            1,
+            4,
+            1
+          ],
+          [
+            1,
+            0,
+            7
+          ],
+          [
+            0,
+            1,
+            8
+          ]
+        ]
+      }
+    },
+    "Baseline 2: ViT-Only": {
+      "total_cases": 23,
+      "correct_cases": 13,
+      "accuracy": 0.5652,
+      "accuracy_pct": 56.52,
+      "precision_macro": 0.4048,
+      "recall_macro": 0.5741,
+      "f1_macro": 0.4697,
+      "precision_weighted": 0.382,
+      "recall_weighted": 0.5652,
+      "f1_weighted": 0.4511,
+      "false_positive_rate": 0.1667,
+      "false_positive_rate_pct": 16.67,
+      "clean_fp_count": 1,
+      "clean_total": 6,
+      "false_negative_rate": 0.1111,
+      "false_negative_rate_pct": 11.11,
+      "suspicious_fn_count": 1,
+      "suspicious_total": 9,
+      "per_class_metrics": {
+        "LOW": {
+          "precision": 0.7142857142857143,
+          "recall": 0.8333333333333334,
+          "f1-score": 0.7692307692307693,
+          "support": 6.0
+        },
+        "MEDIUM": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 8.0
+        },
+        "HIGH": {
+          "precision": 0.5,
+          "recall": 0.8888888888888888,
+          "f1-score": 0.64,
+          "support": 9.0
+        }
+      },
+      "confusion_matrix": {
+        "labels": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ],
+        "matrix": [
+          [
+            5,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            7
+          ],
+          [
+            1,
+            0,
+            8
+          ]
+        ]
+      }
+    },
+    "Baseline 3: ViT + dHash Ensemble": {
+      "total_cases": 23,
+      "correct_cases": 9,
+      "accuracy": 0.3913,
+      "accuracy_pct": 39.13,
+      "precision_macro": 0.3333,
+      "recall_macro": 0.3519,
+      "f1_macro": 0.2967,
+      "precision_weighted": 0.3261,
+      "recall_weighted": 0.3913,
+      "f1_weighted": 0.3157,
+      "false_positive_rate": 0.8333,
+      "false_positive_rate_pct": 83.33,
+      "clean_fp_count": 5,
+      "clean_total": 6,
+      "false_negative_rate": 0.0,
+      "false_negative_rate_pct": 0.0,
+      "suspicious_fn_count": 0,
+      "suspicious_total": 9,
+      "per_class_metrics": {
+        "LOW": {
+          "precision": 0.5,
+          "recall": 0.16666666666666666,
+          "f1-score": 0.25,
+          "support": 6.0
+        },
+        "MEDIUM": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 8.0
+        },
+        "HIGH": {
+          "precision": 0.5,
+          "recall": 0.8888888888888888,
+          "f1-score": 0.64,
+          "support": 9.0
+        }
+      },
+      "confusion_matrix": {
+        "labels": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ],
+        "matrix": [
+          [
+            1,
+            4,
+            1
+          ],
+          [
+            1,
+            0,
+            7
+          ],
+          [
+            0,
+            1,
+            8
+          ]
+        ]
+      }
+    },
+    "Final System: Full Multimodal Pipeline": {
+      "total_cases": 23,
+      "correct_cases": 6,
+      "accuracy": 0.2609,
+      "accuracy_pct": 26.09,
+      "precision_macro": 0.0952,
+      "recall_macro": 0.3333,
+      "f1_macro": 0.1481,
+      "precision_weighted": 0.0745,
+      "recall_weighted": 0.2609,
+      "f1_weighted": 0.1159,
+      "false_positive_rate": 0.0,
+      "false_positive_rate_pct": 0.0,
+      "clean_fp_count": 0,
+      "clean_total": 6,
+      "false_negative_rate": 0.7778,
+      "false_negative_rate_pct": 77.78,
+      "suspicious_fn_count": 7,
+      "suspicious_total": 9,
+      "per_class_metrics": {
+        "LOW": {
+          "precision": 0.2857142857142857,
+          "recall": 1.0,
+          "f1-score": 0.4444444444444444,
+          "support": 6.0
+        },
+        "MEDIUM": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 8.0
+        },
+        "HIGH": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 9.0
+        }
+      },
+      "confusion_matrix": {
+        "labels": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ],
+        "matrix": [
+          [
+            6,
+            0,
+            0
+          ],
+          [
+            8,
+            0,
+            0
+          ],
+          [
+            7,
+            2,
+            0
+          ]
+        ]
+      }
+    }
+  }
+}

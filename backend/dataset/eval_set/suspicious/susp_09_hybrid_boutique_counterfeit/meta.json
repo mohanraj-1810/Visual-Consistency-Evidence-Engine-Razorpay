@@ -1,0 +1,21 @@
+{
+  "name": "Atelier Heritage & Luxe Bazaar",
+  "category": "Curated Designer Goods",
+  "claimed_brand": "Luxe Atelier",
+  "ground_truth": "HIGH",
+  "case_type": "mixed_legitimate_suspicious",
+  "ground_truth_risk_tier": "HIGH",
+  "expected_evidence_summary": "Hybrid catalog contains mixed authentic artisanal items with unauthorized luxury brand reference matches and trademark logo divergence.",
+  "claims": {
+    "inventory_claim": "Curated blend of artisanal ceramics and exclusive designer luxury accessories.",
+    "brand_claim": "Official regional partner for Luxe Atelier.",
+    "compliance_claim": "Statutory Certificate of Incorporation."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": true,
+    "has_pricing": true,
+    "has_about": true,
+    "social_links": []
+  }
+}

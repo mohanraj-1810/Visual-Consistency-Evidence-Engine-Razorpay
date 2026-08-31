@@ -14,5 +14,8 @@
     "has_pricing": true,
     "has_about": true,
     "social_links": []
-  }
+  },
+  "case_type": "fake_distorted_logo",
+  "ground_truth_risk_tier": "HIGH",
+  "expected_evidence_summary": "Claims official Luxe Atelier store; copied designer tote imagery with severely altered trademark logo."
 }

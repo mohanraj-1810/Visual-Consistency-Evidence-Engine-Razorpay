@@ -14,5 +14,8 @@
     "has_pricing": true,
     "has_about": true,
     "social_links": []
-  }
+  },
+  "case_type": "suspicious_external_match",
+  "ground_truth_risk_tier": "HIGH",
+  "expected_evidence_summary": "Claims official Apex horology flagship; stolen luxury timepiece visuals with brand claim mismatch."
 }

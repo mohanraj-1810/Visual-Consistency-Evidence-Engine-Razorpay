@@ -1,0 +1,21 @@
+{
+  "name": "Aethelgard Chronometry",
+  "category": "Luxury Timepieces",
+  "claimed_brand": "Apex Brands",
+  "ground_truth": "HIGH",
+  "case_type": "manipulated_product_image",
+  "ground_truth_risk_tier": "HIGH",
+  "expected_evidence_summary": "Product imagery features spliced reference luxury watch with localized edge-gradient tampering and trademark mismatch.",
+  "claims": {
+    "inventory_claim": "Exclusive proprietary timepiece craftsmanship.",
+    "brand_claim": "Official authorized flagship for Apex Brands.",
+    "compliance_claim": "Statutory Ministry Incorporation Certificate."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": true,
+    "has_pricing": true,
+    "has_about": false,
+    "social_links": []
+  }
+}

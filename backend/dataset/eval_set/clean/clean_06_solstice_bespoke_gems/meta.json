@@ -16,5 +16,8 @@
     "social_links": [
       "https://ig.com/solsticegems"
     ]
-  }
+  },
+  "case_type": "no_external_evidence",
+  "ground_truth_risk_tier": "LOW",
+  "expected_evidence_summary": "Bespoke handcrafted gemstone jewelry; unique visual assets and full business contact details."
 }

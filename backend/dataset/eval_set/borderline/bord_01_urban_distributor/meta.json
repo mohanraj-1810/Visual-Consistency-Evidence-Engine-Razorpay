@@ -14,5 +14,8 @@
     "has_pricing": true,
     "has_about": false,
     "social_links": []
-  }
+  },
+  "case_type": "supplier_catalog_reuse",
+  "ground_truth_risk_tier": "MEDIUM",
+  "expected_evidence_summary": "Regional footwear reseller; supplier catalog overlap with minor logo variance and partial text disclosures."
 }

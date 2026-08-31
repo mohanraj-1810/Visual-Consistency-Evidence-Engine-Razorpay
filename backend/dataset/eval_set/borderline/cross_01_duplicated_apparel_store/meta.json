@@ -1,0 +1,21 @@
+{
+  "name": "Urban Fabric Express",
+  "category": "Apparel & Textiles",
+  "claimed_brand": "Urban Fabric",
+  "ground_truth": "MEDIUM",
+  "case_type": "cross_merchant_reuse",
+  "ground_truth_risk_tier": "MEDIUM",
+  "expected_evidence_summary": "Cross-merchant product imagery duplication matches previously scanned platform merchant; requires distributor verification.",
+  "claims": {
+    "inventory_claim": "Regional apparel distributor catalog.",
+    "brand_claim": "Urban Fabric distribution partner.",
+    "compliance_claim": "Standard digital registration copy."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": true,
+    "has_pricing": true,
+    "has_about": false,
+    "social_links": []
+  }
+}

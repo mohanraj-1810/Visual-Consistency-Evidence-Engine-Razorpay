@@ -16,5 +16,8 @@
     "social_links": [
       "https://ig.com/auraglass"
     ]
-  }
+  },
+  "case_type": "legitimate_merchant",
+  "ground_truth_risk_tier": "LOW",
+  "expected_evidence_summary": "Handblown studio glassware; unique proprietary imagery with verified business profile."
 }

@@ -14,5 +14,8 @@
     "has_pricing": true,
     "has_about": false,
     "social_links": []
-  }
+  },
+  "case_type": "supplier_catalog_reuse",
+  "ground_truth_risk_tier": "MEDIUM",
+  "expected_evidence_summary": "Athletic audio partner; multi-brand distributor visuals with missing about disclosure."
 }

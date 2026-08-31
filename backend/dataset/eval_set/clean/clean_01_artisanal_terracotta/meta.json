@@ -16,5 +16,8 @@
     "social_links": [
       "https://ig.com/terracotta"
     ]
-  }
+  },
+  "case_type": "legitimate_merchant",
+  "ground_truth_risk_tier": "LOW",
+  "expected_evidence_summary": "Artisanal handcrafted ceramics; proprietary visuals with zero external matches and complete compliance disclosures."
 }

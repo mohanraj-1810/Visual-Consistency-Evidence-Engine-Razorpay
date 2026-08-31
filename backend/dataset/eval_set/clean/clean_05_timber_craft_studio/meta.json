@@ -16,5 +16,8 @@
     "social_links": [
       "https://timbercraft.io"
     ]
-  }
+  },
+  "case_type": "legitimate_merchant",
+  "ground_truth_risk_tier": "LOW",
+  "expected_evidence_summary": "Artisan woodworking studio; proprietary catalog photos and standard legal disclosures."
 }

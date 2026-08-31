@@ -16,5 +16,8 @@
     "social_links": [
       "https://ig.com/heritagehide"
     ]
-  }
+  },
+  "case_type": "ambiguous_insufficient_evidence",
+  "ground_truth_risk_tier": "LOW",
+  "expected_evidence_summary": "Handmade custom leather goods; single uncorroborated reference match with no secondary risk signals; classified as LOW."
 }

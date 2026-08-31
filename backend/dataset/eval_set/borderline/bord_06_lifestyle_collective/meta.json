@@ -14,5 +14,8 @@
     "has_pricing": false,
     "has_about": true,
     "social_links": []
-  }
+  },
+  "case_type": "supplier_catalog_reuse",
+  "ground_truth_risk_tier": "MEDIUM",
+  "expected_evidence_summary": "Lifestyle accessories distributor; supplier catalog imagery with missing pricing and policy disclosures."
 }

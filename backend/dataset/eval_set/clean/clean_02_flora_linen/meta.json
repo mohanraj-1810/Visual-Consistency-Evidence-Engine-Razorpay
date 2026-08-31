@@ -16,5 +16,8 @@
     "social_links": [
       "https://fb.com/floralinen"
     ]
-  }
+  },
+  "case_type": "no_external_evidence",
+  "ground_truth_risk_tier": "LOW",
+  "expected_evidence_summary": "Proprietary organic linen studio catalog; zero external visual matches discovered."
 }

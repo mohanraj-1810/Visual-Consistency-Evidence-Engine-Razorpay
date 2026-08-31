@@ -1,0 +1,21 @@
+{
+  "name": "Vanguard Global Imports",
+  "category": "Commercial Import & Export",
+  "claimed_brand": "Vanguard Global",
+  "ground_truth": "HIGH",
+  "case_type": "manipulated_document",
+  "ground_truth_risk_tier": "HIGH",
+  "expected_evidence_summary": "Statutory registration certificate contains severe localized manipulation and ELA gradient disparities.",
+  "claims": {
+    "inventory_claim": "Direct importer inventory.",
+    "brand_claim": "Vanguard Global commercial trade.",
+    "compliance_claim": "Statutory Incorporation Certificate."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": false,
+    "has_pricing": true,
+    "has_about": false,
+    "social_links": []
+  }
+}

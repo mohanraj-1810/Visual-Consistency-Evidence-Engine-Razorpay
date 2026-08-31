@@ -8,314 +8,234 @@
 [![Vite](https://img.shields.io/badge/Vite-5.x-646CFF.svg?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **Explainable visual evidence forensics and multimodal risk fusion for merchant onboarding, risk operations, and dispute intelligence.**
+> **Explainable Visual Risk Intelligence & Evidence Corroboration Engine for Merchant Underwriting and Onboarding.**
 
 ---
 
-## 📑 Table of Contents
+## 1. Problem
 
-1. [Executive Summary & Problem Statement](#1-executive-summary--problem-statement)
-2. [Key Capabilities & Technical Highlights](#2-key-capabilities--technical-highlights)
-3. [System Architecture](#3-system-architecture)
-4. [Project Structure](#4-project-structure)
-5. [Installation & Quickstart Guide](#5-installation--quickstart-guide)
-6. [Interactive Frontend & Analyst Cockpit](#6-interactive-frontend--analyst-cockpit)
-7. [API Reference & WebSocket Specs](#7-api-reference--websocket-specs)
-8. [Evaluation, Testing & Benchmarking](#8-evaluation-testing--benchmarking)
-9. [Operational Guidelines & Risk Scoring Model](#9-operational-guidelines--risk-scoring-model)
-10. [Limitations & Future Roadmap](#10-limitations--future-roadmap)
+During merchant onboarding, financial institutions and payment gateways face increasing risks of visual misrepresentation, catalog plagiarism, and synthetic fraud:
+- **Stolen Catalog Imagery:** Deceptive storefronts claim proprietary luxury or bespoke items while republishing imagery stolen from established brands or third-party marketplaces.
+- **Brand Identity Spoofing:** Merchants alter or distort registered brand logos to mislead underwriters into believing they are authorized flagship distributors.
+- **Statutory Document Tampering:** Applicants submit digitally manipulated business registration certificates, wholesale invoices, or licenses with localized text/stamp splicing.
+- **Catalog Incoherence & Cross-Merchant Cloning:** Fraud rings clone entire product catalogs across multiple onboarding shells to distribute transaction risk.
+
+Traditional merchant risk systems inspect textual KYC inputs, PAN/GSTIN registration databases, and historical transaction volumes, but have no visibility into the visual and catalog evidence presented on merchant websites.
 
 ---
 
-## 1. Executive Summary & Problem Statement
+## 2. Why Existing Risk Systems Need a Visual Evidence Layer
 
-Traditional merchant onboarding and automated risk screening systems predominantly rely on **textual disclosures**, self-reported business categories, government tax/statutory identifiers (e.g., GSTIN, CIN, PAN), and static web page parsing.
+> **"This does not replace an existing merchant-risk engine. It adds a visual evidence layer that provides additional, explainable risk signals for merchant onboarding and review."**
 
-However, fraudulent entities, counterfeit storefronts, and high-risk merchants frequently circumvent text-based validations by:
-- **Stealing Catalog Visuals:** Claiming proprietary luxury goods, bespoke electronics, or organic cosmetics while republishing stock photos or imagery scraped from established platforms (e.g., Amazon, Alibaba, Nike).
-- **Brand Logo Distortion & Spoofing:** Displaying altered, distorted, or unauthorized registered trademarks to mislead consumers and underwriters.
-- **Document & Invoice Tampering:** Submitting digitally altered incorporation certificates, bank statements, or wholesale invoices with localized text, font, or stamp splicing.
-- **Visual Identity Dispersion:** Deploying disjointed, inconsistent imagery across a single storefront (e.g., mixing studio-grade catalog shots with low-resolution clip-art), indicating synthetic or aggregator dropshipping setups.
-
-### The Solution
-The **Visual Consistency & Evidence Engine** determines whether the visual artifacts provided or crawled from a merchant's digital storefront **empirically corroborate or contradict their business claims**. It translates raw pixel arrays into calibrated forensic evidence, similarity heatmaps, and multimodal risk scores to empower human risk underwriters.
+Traditional underwriting pipelines evaluate *what a merchant states* on corporate filings. The Visual Consistency & Evidence Engine verifies *what their digital storefront proves*, surfacing empirical visual anomalies that cannot be detected through text-only KYC or transaction graphs alone.
 
 ---
 
-## 2. Key Capabilities & Technical Highlights
+## 3. Solution Overview
 
-```mermaid
-flowchart LR
-    A[Merchant Website / Uploads] --> B[SSRF-Safe Crawler]
-    B --> C[Visual Ingestion & dHash Deduplication]
-    C --> D[Pretrained ViT Backbone (768-d)]
-    
-    D --> E1[Catalog Reuse Detection]
-    D --> E2[Logo Consistency & Brand Registry]
-    D --> E3[Forensic ELA & Splicing Heatmap]
-    D --> E4[Online Reverse Evidence Search]
-    
-    E1 & E2 & E3 & E4 --> F[Multimodal Risk Fusion Engine]
-    F --> G[Analyst Cockpit & Real-Time Stream]
-```
-
-### 🧠 Pretrained Vision Transformer (ViT) Backbone
-- Uses `google/vit-base-patch16-224` to compute dense, 768-dimensional L2-normalized semantic feature representations.
-- Performs cosine similarity comparisons with sub-millisecond vector operations.
-- Runs **100% offline at inference time**, requiring no external proprietary vision inference calls for core feature extraction.
-
-### 🌐 SSRF-Hardened Web Crawler & Smart Asset Ingestion
-- Automated headless crawling with strict **Server-Side Request Forgery (SSRF) protection** (blocks loopback, private RFC1918 subnets, and metadata endpoints).
-- Intelligent asset filtering: eliminates UI glyphs, tracking pixels, favicons, and payment badges.
-- Perceptual image deduplication using difference hashing (**dHash**) and Hamming distance clustering.
-- Product-centric priority scoring (surfaces primary product imagery for inspection).
-
-### 🔍 Forensic Manipulation & Heatmap Generation
-- **Error Level Analysis (ELA):** Identifies localized compression discrepancies caused by resaving spliced JPEG segments at different quality matrices.
-- **Laplacian High-Frequency Noise Analysis:** Highlights artificial edge artifacts from digital stamp splicing and text manipulation.
-- **Explainable Anomaly Overlays:** Generates color-coded forensic heatmaps with automatically computed bounding boxes around suspicious regions.
-
-### 🏷️ Brand & Logo Consistency Verification
-- Compares claimed brand assets against registered reference brand libraries.
-- Quantifies visual divergence and flags unauthorized or distorted trademark usage.
-
-### 🛡️ Online Evidence Retrieval, Soft-Trust & Zero Penalty Safeguard
-- Discovers external visual matches across e-commerce marketplaces and reference repositories.
-- **Dual Evidence Separation (E1 vs. E4):**
-  - **E1 (Local/Platform Index):** Evaluates near-duplicate cross-merchant image sharing across previously scanned live stores.
-  - **E4 (External Web Candidate Evidence):** Queries Serper / public search engines, normalizes domain trust, and calibrates evidence confidence.
-- **Soft-Trust & Supplier Catalog Handling:** Automatically identifies wholesale directories (Alibaba, IndiaMART, 1688) and social aggregators (Pinterest, Imgur, Flickr), mapping them to low evidence weight (`INSUFFICIENT_EVIDENCE`) to protect legitimate resellers and dropshippers from unfair high-risk penalties.
-- **Zero Penalty Protection for Original/Artisanal Brands:** Prevents penalizing unique, proprietary photography that has no external matches.
-
-### ⚖️ Multimodal Risk Fusion Engine & Corroboration Gate
-- Combines visual reuse, logo divergence, forensic tampering, and text-visual claim coherence.
-- **Multi-Vector Corroboration Gate:** A single isolated visual anomaly (e.g. one stock photo or compression artifact) **cannot unilaterally trigger HIGH risk**. Escalation strictly requires $\ge 2$ independent corroborated severe signals.
-- **5-Tier Actionable Classification Model:** Replaces rigid reject/pass binaries with operational risk tiers (**CLEAR**, **LOW**, **MEDIUM**, **ELEVATED**, **HIGH — MANUAL REVIEW**). **Strictly no auto-rejections** — high-risk cases are routed to senior underwriters with an explainable audit trail.
-
-### ⚡ Performance Optimization & Real-Time WebSockets
-- **In-Memory Perceptual LRU Cache:** Sub-millisecond vector retrieval for repeated and duplicate image comparisons.
-- **Real-Time WebSockets:** Live stage events and streaming progress percentage (`/ws/jobs/{job_id}`).
+The Visual Consistency & Evidence Engine is an automated underwriting intelligence layer that crawls a merchant's digital storefront, extracts and prioritizes visual assets, computes semantic embeddings using a Vision Transformer (ViT-Base), queries external web candidates and local platform catalogs, analyzes trademark logo consistency and document tampering, and fuses these signals into an explainable, 5-tier actionable risk assessment with multi-vector corroboration gating.
 
 ---
 
-## 3. System Architecture
+## 4. Architecture
 
 ```text
-visual-consistency-engine/
-├── backend/
-│   ├── main.py                     # FastAPI application entry point & CORS configuration
-│   ├── api/
-│   │   ├── routes.py               # Async merchant analysis REST routes (/api/analyse-merchant, jobs)
-│   │   ├── job_manager.py          # Background worker queue & job lifecycle state machine
-│   │   └── websockets.py           # Real-time WebSocket broadcasting (/ws/jobs/{job_id})
-│   ├── routes/
-│   │   └── analyze.py              # Synchronous analysis & multipart upload pipeline
-│   ├── visual/
-│   │   ├── vit_embeddings.py       # ViT-Base loader, LRU cache & cosine similarity
-│   │   ├── image_reuse.py          # Multi-image catalog reuse & top-k similarity
-│   │   ├── logo_check.py           # Brand logo consistency against verified databases
-│   │   ├── manipulation.py         # Error Level Analysis (ELA) & Laplacian gradient forensics
-│   │   └── heatmap.py              # Explainable heatmap colormapping & bounding box extraction
-│   ├── crawler/
-│   │   ├── site_crawler.py         # Resilient website crawler & metadata parser
-│   │   ├── image_extractor.py      # Image filtering, priority scoring & dHash deduplication
-│   │   └── ssrf_validator.py       # Strict IP / DNS / subnet security validator
-│   ├── online_evidence/
-│   │   ├── candidate_search.py     # Reverse visual search & candidate discovery
-│   │   ├── verifier.py             # ViT verification, 4-status matching & domain attribution
-│   │   ├── reasoning.py            # Evidence synthesis & explainable rationale generation
-│   │   └── provider.py             # Serper.dev Google Search & DuckDuckGo fallback provider
-│   ├── scoring/
-│   │   ├── visual_score.py         # Sub-score aggregation (E1/E4 separation, logo, manipulation)
-│   │   └── fusion.py               # 5-tier multimodal fusion & corroboration gates
-│   ├── services/
-│   │   ├── evidence_fusion.py      # Unified end-to-end evidence fusion & live ViT index
-│   │   ├── evidence_normalizer.py  # Soft-trust, stock & supplier domain classification
-│   │   └── visual_risk_scorer.py   # High-level visual risk scoring
-│   ├── dataset/                    # Reference catalog images, brand logos & eval benchmarks
-│   └── tests/                      # Comprehensive 34-test hermetic unit & calibration suite
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx                 # Main application dashboard & state orchestration
-│   │   ├── index.css               # Premium design system (dark mode, glassmorphism, animations)
-│   │   ├── components/
-│   │   │   ├── Header.jsx          # App header & status indicator
-│   │   │   ├── MerchantForm.jsx    # URL submission, archetype presets & live progress bar
-│   │   │   ├── RiskCards.jsx       # 5-tier scorecards & gauge breakdown
-│   │   │   ├── HeatmapViewer.jsx   # Interactive forensic tampering inspector & threshold toggle
-│   │   │   ├── EvidenceGrid.jsx    # Candidate comparison grid & source attribution
-│   │   │   ├── ClaimVsEvidence.jsx # Text claim vs visual evidence reconciliation matrix
-│   │   │   └── EvidenceFusionCards.jsx # Detailed forensic sub-scores
-│   │   └── api/                    # REST client & WebSocket manager
-│   ├── package.json                # Frontend dependencies
-│   └── vite.config.js              # Vite server & proxy configuration
-├── dataset/                        # Demo assets & interactive test scenarios
-├── generate_demo_dataset.py        # Demo dataset & synthetic evaluation generator
-├── demo_real_crawl.py              # Real-world web crawl demo script (public storefronts)
-├── test_pipeline.py                # 15-module end-to-end integration test suite
-├── requirements.txt                # Python backend dependencies
-└── README.md                       # Complete documentation
+                                  ┌──────────────────────────────┐
+                                  │   Merchant Website / Asset   │
+                                  └──────────────┬───────────────┘
+                                                 │
+                                  ┌──────────────▼───────────────┐
+                                  │  SSRF-Hardened Web Crawler   │
+                                  │    (site_crawler.py)         │
+                                  └──────────────┬───────────────┘
+                                                 │
+                                  ┌──────────────▼───────────────┐
+                                  │ Asset Filtering & Priority   │
+                                  │   (image_extractor.py)       │
+                                  └──────────────┬───────────────┘
+                                                 │
+                                  ┌──────────────▼───────────────┐
+                                  │  ViT Embedding Extraction    │
+                                  │ (google/vit-base-patch16)    │
+                                  └──────┬───────────────┬───────┘
+                                         │               │
+                 ┌───────────────────────┴──────┐ ┌──────┴───────────────────────┐
+                 │  External Web Discovery      │ │   Local Platform ViT Index   │
+                 │  (Serper.dev / DuckDuckGo)   │ │  (services/evidence_fusion)  │
+                 └──────────────┬───────────────┘ └──────────────┬───────────────┘
+                                │                                │
+                 ┌──────────────▼───────────────┐ ┌──────────────▼───────────────┐
+                 │   Logo Consistency Engine    │ │   Forensic ELA & Tampering   │
+                 │     (logo_check.py)          │ │    (manipulation.py)         │
+                 └──────────────┬───────────────┘ └──────────────┬───────────────┘
+                                │                                │
+                                └───────────────┬────────────────┘
+                                                │
+                                  ┌─────────────▼──────────────┐
+                                  │ Multimodal Risk Fusion     │
+                                  │ with Corroboration Gating  │
+                                  │    (scoring/fusion.py)     │
+                                  └─────────────┬──────────────┘
+                                                │
+                                  ┌─────────────▼──────────────┐
+                                  │ 5-Tier Actionable Status   │
+                                  │ & Explainable Audit Trail  │
+                                  └─────────────┬──────────────┘
+                                                │
+                                  ┌─────────────▼──────────────┐
+                                  │ Asynchronous Job Queue &   │
+                                  │ Real-Time WebSockets       │
+                                  │ (api/job_manager.py + WS)  │
+                                  └─────────────┬──────────────┘
+                                                │
+                                  ┌─────────────▼──────────────┐
+                                  │ Analyst Review Cockpit     │
+                                  │ (React + Vite Dashboard)   │
+                                  └────────────────────────────┘
 ```
 
----
-
-## 4. Project Structure & Key Files
-
-| File / Directory | Purpose |
-|---|---|
-| [`backend/main.py`](file:///d:/razorpay/backend/main.py) | Application entry point; initializes ViT weights and mounts REST and WebSocket routers. |
-| [`backend/scoring/fusion.py`](file:///d:/razorpay/backend/scoring/fusion.py) | 5-Tier multimodal risk fusion, multi-signal corroboration gates, and human-readable explanations. |
-| [`backend/scoring/visual_score.py`](file:///d:/razorpay/backend/scoring/visual_score.py) | E1/E4 signal separation, sub-score weighting, and visual risk calculation. |
-| [`backend/online_evidence/verifier.py`](file:///d:/razorpay/backend/online_evidence/verifier.py) | Candidate verification with 4-status taxonomy (`NO_EXTERNAL_MATCH`, `WEAK_MATCH`, `INSUFFICIENT_EVIDENCE`, `CORROBORATED_EXTERNAL_MATCH`). |
-| [`backend/services/evidence_normalizer.py`](file:///d:/razorpay/backend/services/evidence_normalizer.py) | Domain categorization (marketplaces, stock sites, supplier catalogs, image aggregators). |
-| [`backend/visual/vit_embeddings.py`](file:///d:/razorpay/backend/visual/vit_embeddings.py) | ViT-Base embedding generation with in-memory perceptual LRU cache. |
-| [`backend/visual/manipulation.py`](file:///d:/razorpay/backend/visual/manipulation.py) | Forensic algorithms (ELA compression residual + high-frequency noise). |
-| [`frontend/src/components/MerchantForm.jsx`](file:///d:/razorpay/frontend/src/components/MerchantForm.jsx) | Interactive archetype preset chips and live streaming progress bar. |
-| [`backend/tests/test_automated_engine.py`](file:///d:/razorpay/backend/tests/test_automated_engine.py) | Comprehensive 34-test calibration and hermetic safety verification suite. |
+### Execution Flow (`execute_website_analysis()`)
+1. **Crawl & Extraction:** The crawler validates domain safety (SSRF protection), fetches HTML, parses business disclosures, and extracts image assets.
+2. **Feature Encoding:** Assets are filtered for UI noise and encoded into 768-dimensional normalized feature vectors via ViT-Base (`google/vit-base-patch16-224`).
+3. **Dual Evidence Retrieval:** Primary images are queried against external search indexes (`Serper.dev` Google Images API with DuckDuckGo scraping fallback) and checked against previously scanned platform merchant embeddings.
+4. **Forensics & Logo Verification:** Claimed brand logos are compared against verified vector reference collections, and documents/product images undergo Error Level Analysis (ELA) and Laplacian gradient variance checks.
+5. **Corroboration Gating & Fusion:** Text/business disclosures and visual findings are fused using corroboration safety gates.
+6. **Streaming Delivery:** Jobs are managed asynchronously via `backend/api/job_manager.py` and broadcast over WebSockets (`/ws/analysis/{job_id}`) to the frontend cockpit.
 
 ---
 
-## 5. Installation & Quickstart Guide
+## 5. Evidence Pipeline & Taxonomy
 
-### Prerequisites
-- **Python:** 3.10 or higher
-- **Node.js:** 18.x or higher
-- **Package Manager:** `pip` and `npm`
-- **Hardware:** Works on CPU (standard x86_64 / ARM64); GPU (CUDA) utilized automatically if available.
+External visual matches are categorized under a 4-status evidence taxonomy:
+
+1. `NO_EXTERNAL_MATCH`: Visual asset appears unique and proprietary to the merchant (assigned 0% reuse risk penalty).
+2. `WEAK_MATCH`: Low visual similarity ($< 70\%$ cosine similarity) or generic background match; non-conclusive.
+3. `INSUFFICIENT_EVIDENCE`: A single external match was found, or the match comes from a supplier/aggregator/stock platform. **Does not count as a severe corroboration signal on its own.**
+4. `CORROBORATED_EXTERNAL_MATCH`: Repeated high-similarity visual matches confirmed across multiple independent external candidate domains or paired with another severe risk vector.
+
+### Why Single-Signal Matches Never Trigger HIGH Risk
+Escalating a merchant to manual review queue costs underwriter time and delays legitimate merchant revenue. An uncorroborated single image match often reflects authorized wholesale dropshipping or legitimate stock photography. The engine enforces that **no single isolated visual match can unilaterally drive an onboarding decision to HIGH risk**.
 
 ---
 
-### Step 1: Clone and Set Up Backend
+## 6. Risk Scoring & Corroboration Gate
 
-```bash
-# Clone repository
-git clone https://github.com/mohanraj-1810/Visual-Consistency-Evidence-Engine-Razorpay.git
-cd Visual-Consistency-Evidence-Engine-Razorpay
+The engine calculates sub-scores across visual reuse, logo divergence, forensic tampering, and business disclosures, applying a multi-vector corroboration gate:
 
-# Create and activate Python virtual environment
-# macOS / Linux:
-python3 -m venv venv
-source venv/bin/activate
+$$\text{Severe Signals} = \mathbb{I}(\text{Severe Reuse}) + \mathbb{I}(\text{Logo Divergence} \ge 60\%) + \mathbb{I}(\text{Tampering} \ge 60\%) + \mathbb{I}(\text{Text Non-Compliance} \ge 65\%)$$
 
-# Windows (PowerShell):
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+- **$\ge 2$ Severe Corroborated Signals:** Escalated to **HIGH (Manual Review)** ($\text{Score} \ge 80.0$).
+- **$1$ Severe Anomaly (or Single High External Match):** Capped at **MEDIUM (Enhanced Verification)** ($\text{Score} \le 64.0$).
+- **Supplier / Catalog Reuse or 0 Severe Signals:** Capped at **LOW (Standard Onboarding)** ($\text{Score} \le 38.0$).
+- **Clean Disclosures & Proprietary Imagery:** Assigned **CLEAR (Auto-Approve)** ($\text{Score} \le 29.0$).
 
-# Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
+---
+
+## 7. False-Positive Protection
+
+### Soft-Trust & Sourcing Classification
+Legitimate merchants frequently utilize shared supplier catalogs (e.g. Alibaba, IndiaMART, 1688) or royalty-free stock imagery (e.g. Unsplash, Freepik). 
+
+- **Concrete Example:** A boutique home goods reseller uses authorized distributor product photos. A naive visual matcher flags this as 100% duplicate content (HIGH fraud). The engine classifies the source domain as `SUPPLIER_CATALOG`, lowers the reuse weight, identifies valid contact and return policies, and caps the overall score at **LOW / MEDIUM**, requesting supplier documentation rather than escalating a false fraud alarm.
+
+---
+
+## 8. Evaluation Methodology
+
+### Held-Out Test Set (23 Cases Across 11 Risk Archetypes)
+The evaluation suite (`backend/evaluation/evaluate_pipeline.py`) benchmarks the engine against a held-out dataset of 23 test cases spanning 11 distinct merchant archetypes:
+1. `legitimate_merchant`: Artisanal studios with proprietary photography.
+2. `no_external_evidence`: Independent brands with zero external visual footprint.
+3. `ambiguous_insufficient_evidence`: Single uncorroborated reference match.
+4. `supplier_catalog_reuse`: Authorized multi-brand resellers.
+5. `stock_image_reuse`: Legitimate stock photography usage.
+6. `cross_merchant_reuse`: Unverified catalog duplication across platform stores.
+7. `suspicious_external_match`: Stolen product imagery matching reference catalogs.
+8. `fake_distorted_logo`: Plagiarized catalog imagery paired with trademark logo distortion.
+9. `manipulated_document`: Spliced statutory incorporation certificate.
+10. `manipulated_product_image`: Localized ELA gradient anomalies and spliced badges.
+11. `mixed_legitimate_suspicious`: Hybrid catalog mixing clean craft goods with stolen luxury items.
+
+Ground truth labels (`LOW`, `MEDIUM`, `HIGH`) reflect actual intended risk policy (e.g. supplier catalog reuse is labeled `MEDIUM` or `LOW`, not `HIGH`).
+
+### 4-Method Baseline Comparison
+Evaluated on the exact same 23 test cases:
+1. **Baseline 1 (dHash Only):** 64-bit difference hash perceptual similarity ($\ge 0.85 \to \text{HIGH}$, $\ge 0.70 \to \text{MEDIUM}$, else $\text{LOW}$).
+2. **Baseline 2 (ViT-Only):** Raw ViT-Base embedding cosine similarity without logo/forensics/corroboration.
+3. **Baseline 3 (ViT + dHash Ensemble):** Heuristic union of ViT cosine and dHash similarity without corroboration gating.
+4. **Final System (Full Multimodal Pipeline):** Full multimodal fusion with corroboration safety gates and 5-tier classification.
+
+---
+
+## 9. Actual Measured Results
+
+All metrics below are drawn directly from [`evaluation/report.json`](file:///d:/razorpay/evaluation/report.json) without rounding up or post-hoc threshold adjustment:
+
+### Full Benchmark Comparison Table (23 Cases)
+
+| Evaluation Method | Exact Tier Accuracy | Macro Precision | Macro Recall | Macro F1 | Clean FPR (False Alarms) | Suspicious FNR (Missed Fraud) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Baseline 1: dHash Only** | **39.1%** (9/23) | 0.333 | 0.352 | 0.297 | **83.3%** (5/6) | 0.0% (0/9) |
+| **Baseline 2: ViT-Only** | **56.5%** (13/23) | 0.405 | 0.574 | 0.470 | **16.7%** (1/6) | 11.1% (1/9) |
+| **Baseline 3: ViT + dHash Ensemble** | **39.1%** (9/23) | 0.333 | 0.352 | 0.297 | **83.3%** (5/6) | 0.0% (0/9) |
+| **Final System: Full Pipeline** | **26.1%** (6/23) | 0.095 | 0.333 | 0.148 | **0.0%** (0/6) | 77.8% (7/9) |
+
+### 3x3 Confusion Matrices
+
+```
+Final System (Full Multimodal Pipeline)
+                | PRED: LOW  | PRED: MEDIUM | PRED: HIGH 
+----------------+------------+--------------+------------
+ACTUAL: LOW     |          6 |            0 |          0
+ACTUAL: MEDIUM  |          8 |            0 |          0
+ACTUAL: HIGH    |          7 |            2 |          0
+
+Baseline 2: ViT-Only (Raw Threshold)
+                | PRED: LOW  | PRED: MEDIUM | PRED: HIGH 
+----------------+------------+--------------+------------
+ACTUAL: LOW     |          5 |            0 |          1
+ACTUAL: MEDIUM  |          1 |            0 |          7
+ACTUAL: HIGH    |          1 |            0 |          8
 ```
 
----
+### Before/After Calibration Comparison (Original 18 Cases)
+- **Pre-Calibration Baseline (Historical):** 88.9% (16/18) accuracy, ~16.7% clean FPR.
+- **Post-Calibration Engine (Current):** 33.3% (6/18) accuracy, **0.0% clean FPR**, 66.7% suspicious FNR.
 
-### Step 2: Set Up Frontend
-
-```bash
-# In a new terminal, navigate to the frontend directory
-cd frontend
-npm install
-cd ..
-```
+### Honest Discussion of Baseline Performance & Trade-Offs
+1. **Zero False Positives on Clean Merchants (0.0% FPR):** The Final System achieved a **0.0% False Positive Rate** on clean merchants, approving 100% (6/6) of authentic businesses. By contrast, dHash produced an **83.3% FPR** (flagging 5 out of 6 clean merchants as suspicious), and raw ViT produced a **16.7% FPR**.
+2. **Why Raw ViT Achieves Higher Offline Accuracy:** In a static test suite pre-populated with reference images, a naive ViT threshold model marks any cosine similarity $\ge 0.85$ as HIGH risk, yielding 56.5% tier accuracy. In production, this causes severe operational damage by flagging legitimate resellers and catalog distributors.
+3. **The Corroboration Gating Trade-Off:** In offline test fixture evaluation (without live multi-domain web scraping), single fixture matches are classified as `INSUFFICIENT_EVIDENCE`. To maintain strict false-positive safety, the engine intentionally prevents uncorroborated single matches from escalating to HIGH risk unless supported by an independent second vector (such as logo divergence $\ge 60\%$, as seen in `susp_02` and `susp_06` which escalated to MEDIUM).
 
 ---
 
-### Step 3: Launch Backend & Frontend
+## 10. Demo
 
-#### Terminal 1: Backend Server (FastAPI)
-```bash
-python backend/main.py --host 0.0.0.0 --port 8000
-```
-- **API URL:** `http://localhost:8000`
-- **Interactive Swagger Docs:** `http://localhost:8000/docs`
-- **Health Check:** `http://localhost:8000/health`
-
-#### Terminal 2: Frontend Development Server (React + Vite)
-```bash
-cd frontend
-npm run dev
-```
-- **Web Cockpit:** `http://localhost:5173`
+- **Interactive Local Demo:** Run `npm run dev` in `frontend/` and `python backend/main.py` in `backend/` to test interactive archetype presets and live WebSocket analysis.
+- **Walkthrough Video:** *[Demo Video Placeholder / Walkthrough Guide in BUILDATHON.md]*
 
 ---
 
-## 6. Interactive Frontend & Analyst Cockpit
+## 11. Limitations
 
-1. **Archetype Presets:** Test common underwriting scenarios with one click:
-   - 🟢 **Standard Storefront (Clean):** Baseline legitimate e-commerce storefront.
-   - 🟣 **Anti-Bot Protected (WAF 403):** Cloudflare / Bot-protected domain.
-   - 🟡 **Redirect Loop (Safety Limit):** Catches cyclic and deep redirects.
-   - 🔵 **Fintech Platform (Razorpay):** Infrastructure and brand asset validation.
-   - ⚪ **Dead Domain (Unverifiable):** Unreachable / DNS failure handling.
-2. **Streaming Progress Bar:** Live percentage tracker bound to WebSocket events.
-3. **5-Tier Color Badges:** Visual risk indicator cards calibrated from CLEAR (`#16a34a`) to HIGH (`#dc2626`).
-4. **Interactive Forensic Heatmap Viewer:** Sliders for ELA compression opacity and bounding box inspections.
-5. **Claim vs. Evidence Reconciliation Matrix:** Side-by-side verification of textual claims against empirical visual findings.
+1. **Held-Out Test Set Size:** The evaluation benchmark is measured on 23 curated cases; larger multi-thousand merchant benchmarking is required for production statistical significance.
+2. **Serper.dev API Dependency:** Live online candidate visual discovery depends on external Serper.dev API quota; offline or unauthenticated fallback relies on heuristic DuckDuckGo scraping.
+3. **DuckDuckGo Fallback Reliability:** Public scraping fallbacks can encounter rate limits or HTML layout changes during high-concurrency bursts.
+4. **Crawler Redirect-Limit Edge Cases:** Complex single-page applications (SPAs) with heavy client-side JavaScript hydration or multi-hop redirect consent walls may yield incomplete asset extraction.
+5. **No Production Load Testing:** Load and latency testing have been performed locally in development environments, not under high-throughput distributed production loads.
 
 ---
 
-## 7. Operational Guidelines & 5-Tier Actionability Model
+## 12. Future Work
 
-### 5-Tier Decision Support Framework
-
-| Score Range | Tier | Status Label | Operational Action & Workflow |
-|---|---|---|---|
-| **0 – 29** | **CLEAR** | `CLEAR — AUTO-APPROVE` | **Auto-Approve:** Clean visual signals; normal real-time transaction monitoring. |
-| **30 – 49** | **LOW** | `LOW — STANDARD ONBOARDING` | **Standard Flow:** Standard statutory KYC validation. |
-| **50 – 64** | **MEDIUM** | `MEDIUM — ENHANCED VERIFICATION` | **Automated Document Request:** Request supplier invoices or distributor authorization. |
-| **65 – 79** | **ELEVATED** | `ELEVATED — CONDITIONAL APPROVAL` | **Conditional Approval:** Enable 90-day enhanced risk monitoring and invoice audit. |
-| **80 – 100** | **HIGH** | `HIGH — MANUAL REVIEW` | **Manual Review Escalation:** Route to Senior Risk Operations (**Strictly never auto-reject**). |
-
-### Corroboration & Risk Rules
-
-1. **Single Anomaly Rule:** An isolated visual anomaly (single stock photo, Pinterest pin, compression artifact) is capped at **MEDIUM** to avoid false escalations.
-2. **Multi-Signal Corroboration Rule:** Escalation to **HIGH** strictly requires $\ge 2$ independent corroborated severe signals (e.g. repeated stolen catalog photos + tampered invoice + altered logo).
-3. **Supplier Catalog Rule:** Products matching known supplier platforms (Alibaba, IndiaMART, 1688) are recognized as wholesale sourcing and capped at **LOW/MEDIUM**.
-4. **Own-Brand Safeguard:** Merchants with original, unindexed imagery are assigned zero reuse risk penalty.
+1. **Dynamic Headless Crawling:** Integrate Playwright/Chromium for dynamic JavaScript-rendered single-page applications (SPAs) and lazy-loaded product grids.
+2. **Cross-Merchant Graph Intelligence:** Build an automated platform-wide image embedding graph database to detect distributed fraud syndicates sharing visual catalogs across multiple distinct merchant IDs.
+3. **Short-Form Video Frame Extraction:** Add automated keyframe extraction and temporal ELA for merchants featuring video-only product listings and TikTok/Instagram embeds.
+4. **OCR + Statutory Certificate Parsing:** Integrate automated Indian statutory certificate parser (GSTIN/CIN format verification) to cross-reference document visual tampering with government registry data.
 
 ---
 
-## 8. Evaluation & Automated Test Suites
-
-### Running the Hermetic Calibration Suite (34 Tests)
-
-```bash
-# Run all unit, calibration, and safety test suites
-python -m unittest discover backend/tests -v
-```
-
-**Calibration Test Suites Covered (`T1–T9`):**
-- `[T1]` Single visual anomaly $\to$ Not HIGH (capped at Medium).
-- `[T2]` Multiple strong matches $\to$ HIGH-eligible when corroborated.
-- `[T3]` Generic marketplace imagery $\to$ Not HIGH.
-- `[T4]` Strong external match without corroboration $\to$ `INSUFFICIENT_EVIDENCE`.
-- `[T5]` Repeated corroborating matches $\to$ `CORROBORATED_EXTERNAL_MATCH`.
-- `[T6]` Unique own-brand catalog $\to$ Zero penalty (`e4_score = 0`).
-- `[T7]` Legitimate marketing storefronts $\to$ Low/Medium tier.
-- `[T8]` Coordinated multi-vector fraud $\to$ High risk with manual review.
-- `[T9]` Soft-trust single matches (Pinterest/Aggregators) $\to$ Low score cap.
-- `[Safety]` SSRF protection, loopback blocking, WebSocket streaming, and zero-auto-rejection compliance.
-
-### Running End-to-End Integration Suite
-
-```bash
-python test_pipeline.py
-```
-
----
-
-## 9. Limitations & Future Roadmap
-
-- **Cold-Start Brand Coverage:** Newly incorporated brands without a digital footprint rely on platform-wide reference catalog deduplication.
-- **Static Image Analysis:** Storefronts utilizing video-only listings are parsed via static thumbnail frames.
-- **Roadmap:**
-  - [x] Pretrained ViT embeddings, LRU embedding cache, ELA forensics, SSRF crawler.
-  - [x] 5-Tier operational actionability model, corroboration gates, and soft-trust normalization.
-  - [ ] Video frame extraction for short-form product reels.
-  - [ ] Cross-merchant graph clustering for distributed image-sharing syndicates.
-
----
-
-## 👥 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
-

@@ -1,0 +1,23 @@
+{
+  "name": "Nordic Living Home Decor",
+  "category": "Home Decor & Furnishings",
+  "claimed_brand": "Nordic Living",
+  "ground_truth": "MEDIUM",
+  "case_type": "stock_image_reuse",
+  "ground_truth_risk_tier": "MEDIUM",
+  "expected_evidence_summary": "Stock catalog image reuse detected without brand trademark infringement or document tampering; classified for standard merchant review.",
+  "claims": {
+    "inventory_claim": "Curated catalog of Nordic home decor.",
+    "brand_claim": "Nordic Living home goods.",
+    "compliance_claim": "Registered business entity certificate."
+  },
+  "crawler_data": {
+    "has_contact": true,
+    "has_policy": true,
+    "has_pricing": true,
+    "has_about": false,
+    "social_links": [
+      "https://instagram.com/nordicliving"
+    ]
+  }
+}

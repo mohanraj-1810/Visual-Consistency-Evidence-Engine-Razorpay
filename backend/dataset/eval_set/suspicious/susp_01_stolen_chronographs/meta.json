@@ -16,5 +16,8 @@
     "social_links": [
       "https://apex-fake.com"
     ]
-  }
+  },
+  "case_type": "suspicious_external_match",
+  "ground_truth_risk_tier": "HIGH",
+  "expected_evidence_summary": "Claims official Apex Brands luxury watch flagship; plagiarized luxury chronograph imagery with trademark logo divergence."
 }
