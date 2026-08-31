@@ -7,14 +7,14 @@ import EvidenceFusionCards from './components/EvidenceFusionCards';
 import HeatmapViewer from './components/HeatmapViewer';
 import ErrorBoundary from './components/ErrorBoundary';
 import AnalysisCounter from './components/AnalysisCounter';
+import WhyDecision from './components/WhyDecision';
+import MerchantFingerprint from './components/MerchantFingerprint';
+import PipelinePerformance from './components/PipelinePerformance';
+import DemoMode from './components/DemoMode';
 import { streamWebsiteAnalysis } from './api/client';
 import { AlertTriangle } from 'lucide-react';
 
 // ── Hero Stage Mapping ────────────────────────────────────────
-// Stage 0: idle  → bg 60%, headline 0
-// Stage 1: crawl → bg 40%, headline 0
-// Stage 2: search/discover → bg 18%, headline 1
-// Stage 3: done  → bg 0%, headline 2
 const STAGE_STEPS = {
   crawl: 1, extract: 1, prioritize: 1,
   search: 2, candidates: 2,
@@ -38,14 +38,14 @@ export default function App() {
   const [analysisStartTs, setAnalysisStartTs] = useState(null);
   const [analysisEndTs, setAnalysisEndTs]     = useState(null);
   const [feedItems, setFeedItems]     = useState([]);
+  // Analyst workflow state (frontend-only, no persistence needed for demo)
+  const [analystStatus, setAnalystStatus] = useState(null); // null | 'pending' | 'reviewed' | 'escalated' | 'needs_verification'
   const closeStreamRef = useRef(null);
 
-  // Advance hero stage based on completed steps
   const advanceStage = useCallback((stepId) => {
     const targetStage = STAGE_STEPS[stepId] ?? 0;
     setHeroStage(prev => {
       if (targetStage > prev) {
-        // Cross-fade headline on stage advancement
         if (targetStage === 2) setHeadlineIdx(1);
         if (targetStage === 3) setHeadlineIdx(2);
         return targetStage;
@@ -63,9 +63,7 @@ export default function App() {
   }, []);
 
   const handleAnalyze = (url) => {
-    // Cancel any running stream
     if (closeStreamRef.current) closeStreamRef.current();
-
     setLoading(true);
     setError(null);
     setResult(null);
@@ -75,6 +73,7 @@ export default function App() {
     setFeedItems([]);
     setAnalysisStartTs(Date.now());
     setAnalysisEndTs(null);
+    setAnalystStatus(null);
 
     closeStreamRef.current = streamWebsiteAnalysis(
       url,
@@ -93,6 +92,7 @@ export default function App() {
         advanceStage('all_done');
         setResult(analysisData);
         setLoading(false);
+        setAnalystStatus('pending');
       },
       (err) => {
         console.error('Analysis error:', err);
@@ -105,12 +105,26 @@ export default function App() {
     );
   };
 
-  // Compute pipeline step states for the stepper
+  // Demo scenario handler — receives result directly from DemoMode
+  const handleDemoResult = (analysisData) => {
+    if (closeStreamRef.current) closeStreamRef.current();
+    setLoading(false);
+    setError(null);
+    setResult(analysisData);
+    setCurrentSteps({ all_done: true });
+    setHeroStage(3);
+    setHeadlineIdx(2);
+    setAnalysisStartTs(Date.now());
+    setAnalysisEndTs(Date.now());
+    setAnalystStatus('pending');
+    addFeedItem('Demo scenario loaded from deterministic fixture.');
+  };
+
   const PIPELINE_STAGES = [
-    { id: 'crawl',     label: 'CRAWL',    steps: ['crawl', 'extract', 'prioritize'] },
-    { id: 'discover',  label: 'DISCOVER', steps: ['search', 'candidates'] },
-    { id: 'verify',    label: 'VERIFY',   steps: ['vit', 'logo', 'reuse', 'manipulation', 'identity'] },
-    { id: 'score',     label: 'SCORE',    steps: ['fusion', 'completed'] },
+    { id: 'crawl',    label: 'CRAWL',    steps: ['crawl', 'extract', 'prioritize'] },
+    { id: 'discover', label: 'DISCOVER', steps: ['search', 'candidates'] },
+    { id: 'verify',   label: 'VERIFY',   steps: ['vit', 'logo', 'reuse', 'manipulation', 'identity'] },
+    { id: 'score',    label: 'SCORE',    steps: ['fusion', 'completed'] },
   ];
 
   const getStageStatus = (stage) => {
@@ -128,13 +142,13 @@ export default function App() {
 
   const fusionEvidence = result?.evidence || result?.structured_evidence || result?.candidate_evidence || [];
 
-  const verdictClass = (() => {
-    const s = result?.fusion?.status || '';
-    if (s.includes('HIGH') || s.includes('BOT') || s.includes('REDIRECT')) return 'high';
-    if (s.includes('MEDIUM')) return 'medium';
-    if (s.includes('LOW')) return 'low';
-    return 'unverifiable';
-  })();
+  // Analyst workflow action labels
+  const ANALYST_ACTIONS = [
+    { id: 'pending',            label: 'PENDING REVIEW', class: 'tag-amber' },
+    { id: 'reviewed',           label: 'REVIEWED',       class: 'tag-green' },
+    { id: 'needs_verification', label: 'NEEDS VERIFICATION', class: 'tag-amber' },
+    { id: 'escalated',          label: 'ESCALATED',      class: 'tag-red' },
+  ];
 
   return (
     <>
@@ -160,7 +174,14 @@ export default function App() {
           <button
             className="btn-primary"
             style={{ padding: '0.45rem 1rem', fontSize: '11px' }}
-            onClick={() => { setResult(null); setError(null); setHeroStage(0); setHeadlineIdx(0); setAnalysisStartTs(null); }}
+            onClick={() => {
+              setResult(null);
+              setError(null);
+              setHeroStage(0);
+              setHeadlineIdx(0);
+              setAnalysisStartTs(null);
+              setAnalystStatus(null);
+            }}
           >
             New Analysis
           </button>
@@ -178,7 +199,6 @@ export default function App() {
         <div className="hero-content">
           <span className="eyebrow">Visual Fraud Intelligence</span>
 
-          {/* Cross-fading headline */}
           <div className="hero-headline-wrap" aria-live="polite">
             {HERO_HEADLINES.map((h, i) => (
               <h1
@@ -217,7 +237,22 @@ export default function App() {
       {/* ── Main Content ── */}
       <main id="main-content" className="page-container">
 
-        {/* Error state */}
+        {/* ── Demo Scenarios (always visible when not loading and no result) ── */}
+        {!loading && !result && (
+          <div className="section-block" style={{ paddingTop: '2.5rem' }}>
+            <div className="section-header" style={{ marginBottom: '1rem' }}>
+              <span className="eyebrow">Hackathon Judge Walkthrough</span>
+              <h2 className="section-headline">3 Deterministic Demo Scenarios</h2>
+              <p className="section-subtext">
+                Each scenario runs against a fixed offline fixture — no live external search dependency.
+                Results are reproducible and deterministic.
+              </p>
+            </div>
+            <DemoMode onResult={handleDemoResult} loading={loading} />
+          </div>
+        )}
+
+        {/* ── Error state ── */}
         {error && (
           <div
             className="notice-banner red-notice"
@@ -232,10 +267,11 @@ export default function App() {
           </div>
         )}
 
-        {/* Results */}
+        {/* ── Results ── */}
         {result && (
           <ErrorBoundary onReset={() => { setResult(null); setError(null); }}>
 
+            {/* ── TOP: Risk Verdict ── */}
             <div className="section-block" style={{ paddingTop: '3rem' }}>
               <RiskCards
                 fusion={result.fusion}
@@ -245,11 +281,57 @@ export default function App() {
               />
             </div>
 
+            {/* ── Analyst Workflow Status ── */}
+            {analystStatus && (
+              <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <span className="eyebrow" style={{ fontSize: '10px' }}>ANALYST WORKFLOW</span>
+                  <span className={`tag ${ANALYST_ACTIONS.find(a => a.id === analystStatus)?.class || 'tag-amber'}`}>
+                    {ANALYST_ACTIONS.find(a => a.id === analystStatus)?.label || analystStatus.toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {ANALYST_ACTIONS.map(a => (
+                    <button
+                      key={a.id}
+                      className="btn-secondary"
+                      style={{ padding: '0.3rem 0.8rem', fontSize: '10px', opacity: analystStatus === a.id ? 1 : 0.55 }}
+                      onClick={() => setAnalystStatus(a.id)}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── WHY THIS DECISION? ── */}
+            <WhyDecision
+              fusion={result.fusion}
+              reuse={result.reuse}
+              logo={result.logo}
+              manipulation={result.manipulation}
+              identity={result.identity}
+            />
+
+            {/* ── VISUAL MERCHANT PROFILE ── */}
+            <MerchantFingerprint
+              reuse={result.reuse}
+              logo={result.logo}
+              manipulation={result.manipulation}
+              identity={result.identity}
+              fusion={result.fusion}
+            />
+
+            {/* ── PIPELINE PERFORMANCE ── */}
+            <PipelinePerformance fusion={result.fusion} result={result} />
+
+            {/* ── CLAIM VS EVIDENCE ── */}
             <div className="section-block">
               <div className="section-header">
                 <span className="eyebrow">Claim Analysis Layer</span>
                 <h2 className="section-headline">Evidence vs. Claim Reasoning</h2>
-                <p className="section-subtext">Does the visual evidence associated with this merchant support or contradict what they claim?</p>
+                <p className="section-subtext">Does the visual evidence support or contradict what the merchant claims?</p>
               </div>
               <ClaimVsEvidence
                 claimsReasoning={result.claims_reasoning}
@@ -258,6 +340,7 @@ export default function App() {
               />
             </div>
 
+            {/* ── EVIDENCE FUSION ── */}
             {fusionEvidence.length > 0 && (
               <div className="section-block">
                 <div className="section-header">
@@ -274,6 +357,7 @@ export default function App() {
               </div>
             )}
 
+            {/* ── FORENSIC METRICS ── */}
             <div className="section-block">
               <div className="section-header">
                 <span className="eyebrow">Forensic Signal Breakdown</span>
@@ -288,6 +372,7 @@ export default function App() {
               />
             </div>
 
+            {/* ── HEATMAP & DEEP DIVE ── */}
             <div className="section-block">
               <div className="section-header">
                 <span className="eyebrow">Forensic Deep-Dive</span>

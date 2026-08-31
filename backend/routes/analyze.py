@@ -14,6 +14,7 @@ import io
 import json
 import os
 import sys
+import time
 import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union, AsyncGenerator
@@ -870,6 +871,90 @@ async def analyze_merchant_post(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Analysis pipeline error: {str(e)}")
+
+
+@router.get("/api/demo-scenarios")
+async def list_demo_scenarios():
+    """
+    Returns the 3 deterministic demo scenarios for judge walkthroughs.
+    """
+    return [
+        {
+            "id": "clean",
+            "name": "Artisanal Studio (Clean Merchant)",
+            "merchant_name": "Terracotta Heritage Studio",
+            "category": "Handcrafted Ceramics & Homeware",
+            "scenario_type": "Clean Merchant (Low Risk)",
+            "expected_tier": "CLEAR / AUTO-APPROVE",
+            "expected_score": 5.0,
+            "case_id": "clean_01_artisanal_terracotta",
+            "summary": "100% proprietary artisanal photography with zero external matches and complete statutory disclosures. Demonstrates 0.0% clean false positive rate.",
+        },
+        {
+            "id": "supplier",
+            "name": "Urban Footwear (Supplier Reseller)",
+            "merchant_name": "Urban Velocity Footwear",
+            "category": "Footwear Reseller & Distributor",
+            "scenario_type": "Ambiguous / Supplier Sourcing",
+            "expected_tier": "LOW / STANDARD ONBOARDING",
+            "expected_score": 31.5,
+            "case_id": "bord_01_urban_distributor",
+            "summary": "Legitimate footwear distributor using authorized supplier catalog images. Sourcing reuse is softly trusted and excluded from severe escalation to protect legitimate resellers.",
+        },
+        {
+            "id": "counterfeit",
+            "name": "Luxe Clones (Corroborated Risk)",
+            "merchant_name": "Luxe Atelier Outlet",
+            "category": "Luxury Designer Handbags",
+            "scenario_type": "Corroborated High-Risk Counterfeit",
+            "expected_tier": "MEDIUM / ENHANCED VERIFICATION",
+            "expected_score": 55.0,
+            "case_id": "susp_02_cloned_designer_leather",
+            "summary": "Plagiarized luxury designer handbag photography paired with 62.9% distorted trademark logo. Triggers multi-vector underwriter document verification.",
+        },
+    ]
+
+
+@router.get("/api/demo-scenario/{scenario_id}")
+async def get_demo_scenario_analysis(scenario_id: str):
+    """
+    Executes and returns instant deterministic analysis for a demo scenario.
+    """
+    id_map = {
+        "clean": "clean_01_artisanal_terracotta",
+        "supplier": "bord_01_urban_distributor",
+        "counterfeit": "susp_02_cloned_designer_leather",
+    }
+    case_name = id_map.get(scenario_id.lower(), scenario_id)
+
+    try:
+        from evaluation.evaluate_pipeline import load_all_eval_cases
+        all_cases = load_all_eval_cases(DATASET_DIR)
+        target_case = next((c for c in all_cases if c["case_id"] == case_name), None)
+        if not target_case:
+            raise HTTPException(status_code=404, detail=f"Demo scenario '{scenario_id}' not found.")
+
+        t0 = time.time()
+        res = run_pipeline(
+            merchant_name=target_case["merchant_name"],
+            product_images=target_case["product_images"],
+            logo_image=target_case["logo_image"],
+            document_image=target_case["document_image"],
+            claimed_brand=target_case["claimed_brand"],
+            claims=target_case["claims"],
+            crawler_data=target_case["crawler_data"],
+            prefer_online_discovery=False,
+            test_fixture_dir=str(DATASET_DIR / "reference"),
+        )
+        latency_ms = round((time.time() - t0) * 1000, 2)
+        res["pipeline_latency_ms"] = latency_ms
+        res["demo_scenario_id"] = scenario_id
+        res["demo_scenario_name"] = target_case["merchant_name"]
+        return sanitize_for_json(res)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Demo execution failed: {str(e)}")
 
 
 @router.get("/analyze-stream")

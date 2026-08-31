@@ -3,11 +3,14 @@ import { Link2, Play, Loader2, X, CheckCircle2, ArrowRight } from 'lucide-react'
 
 const SAMPLE_PRESETS = [
   { name: 'Standard Storefront', url: 'https://example.com', desc: 'Baseline clean entity' },
+  { name: 'Razorpay', url: 'https://razorpay.com', desc: 'Fintech infrastructure platform' },
   { name: 'Anti-Bot (403)', url: 'https://www.etsy.com', desc: 'Cloudflare / WAF protected' },
   { name: 'Redirect Loop', url: 'https://httpbin.org/redirect/5', desc: 'Exceeds 3-hop safety limit' },
-  { name: 'Fintech Platform', url: 'https://razorpay.com', desc: 'Infrastructure brand platform' },
   { name: 'Dead Domain', url: 'https://nonexistent-store-fake-12345.com', desc: 'Unreachable host' },
 ];
+
+// Insufficient evidence notice — displayed in live feed when evidence is low
+const INSUFFICIENT_EVIDENCE_NOTE = 'Insufficient external evidence: single uncorroborated fixture match — capped at LOW by safety policy.';
 
 export default function HeroInput({
   onAnalyze,
