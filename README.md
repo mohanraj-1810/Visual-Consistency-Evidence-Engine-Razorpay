@@ -210,14 +210,37 @@ ACTUAL: HIGH    |          1 |            0 |          8
 
 ---
 
-## 10. Demo
+## 10. Quick Start & Docker Deployment
+
+### Run with Docker (Recommended)
+
+1. Ensure **Docker Desktop** is installed and running.
+2. (Optional) Configure API keys:
+   ```bash
+   cp .env.example .env
+   ```
+3. Build and launch the container:
+   ```bash
+   docker compose up --build
+   ```
+4. Open the Analyst Cockpit in your browser at:
+   - **Analyst Cockpit (UI):** [http://localhost:8000](http://localhost:8000)
+   - **Interactive API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **Health Endpoint:** [http://localhost:8000/health](http://localhost:8000/health)
+
+*See [DOCKER.md](file:///d:/razorpay/DOCKER.md) for full container management and testing commands.*
+
+---
+
+## 11. Local Development Demo
 
 - **Interactive Local Demo:** Run `npm run dev` in `frontend/` and `python backend/main.py` in `backend/` to test interactive archetype presets and live WebSocket analysis.
 - **Walkthrough Video:** *[Demo Video Placeholder / Walkthrough Guide in BUILDATHON.md]*
 
+
 ---
 
-## 11. Limitations
+## 12. Limitations
 
 1. **Held-Out Test Set Size:** The evaluation benchmark is measured on 23 curated cases; larger multi-thousand merchant benchmarking is required for production statistical significance.
 2. **Serper.dev API Dependency:** Live online candidate visual discovery depends on external Serper.dev API quota; offline or unauthenticated fallback relies on heuristic DuckDuckGo scraping.
@@ -227,7 +250,7 @@ ACTUAL: HIGH    |          1 |            0 |          8
 
 ---
 
-## 12. Future Work
+## 13. Future Work
 
 1. **Dynamic Headless Crawling:** Integrate Playwright/Chromium for dynamic JavaScript-rendered single-page applications (SPAs) and lazy-loaded product grids.
 2. **Cross-Merchant Graph Intelligence:** Build an automated platform-wide image embedding graph database to detect distributed fraud syndicates sharing visual catalogs across multiple distinct merchant IDs.
@@ -239,3 +262,4 @@ ACTUAL: HIGH    |          1 |            0 |          8
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+

@@ -62,6 +62,8 @@ origins = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 # For production deployment, uncomment and configure your frontend domain:
@@ -92,6 +94,22 @@ async def health_check():
         "evidence_provider": "WebSearchEvidenceProvider",
         "serper_api_configured": serper_configured,
     }
+
+
+# Mount built React Frontend if available (Production / Docker distribution)
+frontend_dist = BACKEND_DIR.parent / "frontend" / "dist"
+if frontend_dist.is_dir():
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    @app.get("/")
+    async def serve_spa_index():
+        return FileResponse(str(frontend_dist / "index.html"))
+
 
 
 if __name__ == "__main__":
