@@ -951,6 +951,7 @@ async def get_demo_scenario_analysis(scenario_id: str):
         res["demo_scenario_id"] = scenario_id
         res["demo_scenario_name"] = target_case["merchant_name"]
         res["web_detection_mode"] = "DEMO_FIXTURE_OFFLINE"
+        res["web_detection_simulated"] = False  # Demo fixtures are deterministic, not simulated
         return sanitize_for_json(res)
     except HTTPException:
         raise

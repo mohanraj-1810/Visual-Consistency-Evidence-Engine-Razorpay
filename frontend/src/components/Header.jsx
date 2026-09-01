@@ -13,10 +13,10 @@ export default function Header() {
 
       <header className="main-header">
         <div>
-          <h1>
+          <div className="header-brand">
             <Shield size={32} color="#3b82f6" />
             <span>Visual Consistency & Evidence Engine</span>
-          </h1>
+          </div>
           <p>
             Multimodal visual intelligence, online candidate discovery (Serper.dev) & ViT verification for merchant underwriting
           </p>

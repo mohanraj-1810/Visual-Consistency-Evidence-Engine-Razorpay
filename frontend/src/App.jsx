@@ -1,265 +1,252 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import HeroInput from './components/HeroInput';
-import RiskCards from './components/RiskCards';
-import ClaimVsEvidence from './components/ClaimVsEvidence';
-import EvidenceGrid from './components/EvidenceGrid';
-import EvidenceFusionCards from './components/EvidenceFusionCards';
-import HeatmapViewer from './components/HeatmapViewer';
-import ErrorBoundary from './components/ErrorBoundary';
-import AnalysisCounter from './components/AnalysisCounter';
-import WhyDecision from './components/WhyDecision';
+import React, { useState, useCallback, useRef } from 'react';
+
+import Header           from './components/Header';
+import HeroInput        from './components/HeroInput';
+import DemoMode         from './components/DemoMode';
+import RiskCards        from './components/RiskCards';
+import WhyDecision      from './components/WhyDecision';
 import MerchantFingerprint from './components/MerchantFingerprint';
+import ClaimVsEvidence  from './components/ClaimVsEvidence';
+import EvidenceFusionCards from './components/EvidenceFusionCards';
+import EvidenceGrid     from './components/EvidenceGrid';
 import PipelinePerformance from './components/PipelinePerformance';
-import DemoMode from './components/DemoMode';
+import HeatmapViewer    from './components/HeatmapViewer';
+import AnalysisCounter  from './components/AnalysisCounter';
+import ErrorBoundary    from './components/ErrorBoundary';
+
 import { streamWebsiteAnalysis } from './api/client';
 import { AlertTriangle } from 'lucide-react';
 
-// ── Hero Stage Mapping ────────────────────────────────────────
-const STAGE_STEPS = {
-  crawl: 1, extract: 1, prioritize: 1,
-  search: 2, candidates: 2,
-  vit: 2, logo: 2, reuse: 2, manipulation: 2, identity: 2,
-  fusion: 3, completed: 3, all_done: 3,
-};
-
-const HERO_HEADLINES = [
-  'Does the evidence\nmatch the claim?',
-  'Uncovering\nthe truth.',
-  'Find out.',
+// ── Pipeline stage definitions (drives HeroInput stepper) ───────────────────
+const PIPELINE_STAGES = [
+  { id: 'crawl',     label: 'Crawl'     },
+  { id: 'extract',   label: 'Extract'   },
+  { id: 'search',    label: 'Search'    },
+  { id: 'forensics', label: 'Forensics' },
+  { id: 'fusion',    label: 'Fusion'    },
 ];
 
+// Map fine-grained backend step IDs onto the 5 display stages
+const STEP_TO_STAGE = {
+  crawl:        'crawl',
+  extract:      'extract',
+  prioritize:   'extract',
+  search:       'search',
+  candidates:   'search',
+  vit:          'search',
+  logo:         'forensics',
+  reuse:        'forensics',
+  manipulation: 'forensics',
+  identity:     'forensics',
+  fusion:       'fusion',
+  completed:    'fusion',
+};
+
 export default function App() {
-  const [result, setResult]           = useState(null);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState(null);
+  const [result,       setResult]       = useState(null);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState(null);
+  // currentSteps: { [stepId]: 'in_progress' | 'completed' | 'done' }
   const [currentSteps, setCurrentSteps] = useState({});
-  const [heroStage, setHeroStage]     = useState(0);
-  const [headlineIdx, setHeadlineIdx] = useState(0);
-  const [analysisStartTs, setAnalysisStartTs] = useState(null);
-  const [analysisEndTs, setAnalysisEndTs]     = useState(null);
-  const [feedItems, setFeedItems]     = useState([]);
-  // Analyst workflow state (frontend-only, no persistence needed for demo)
-  const [analystStatus, setAnalystStatus] = useState(null); // null | 'pending' | 'reviewed' | 'escalated' | 'needs_verification'
-  const closeStreamRef = useRef(null);
+  // feedItems: array of { ts, msg } for the live evidence stream
+  const [feedItems,    setFeedItems]    = useState([]);
 
-  const advanceStage = useCallback((stepId) => {
-    const targetStage = STAGE_STEPS[stepId] ?? 0;
-    setHeroStage(prev => {
-      if (targetStage > prev) {
-        if (targetStage === 2) setHeadlineIdx(1);
-        if (targetStage === 3) setHeadlineIdx(2);
-        return targetStage;
+  // Timing state for AnalysisCounter
+  const [startTs, setStartTs] = useState(null);
+  const [endTs,   setEndTs]   = useState(null);
+
+  // Keep a ref to the stream cleanup fn so we can cancel mid-flight
+  const cleanupRef = useRef(null);
+
+  // ── getStageStatus: maps a stage object → 'done' | 'active' | 'idle' ─────
+  const getStageStatus = useCallback((stage) => {
+    // A stage is done when any of its child steps are completed/done,
+    // or when a later stage has started.
+    const stageIndex = PIPELINE_STAGES.findIndex(s => s.id === stage.id);
+
+    // Find the highest stage that has any activity
+    let highestActiveIndex = -1;
+    for (const [stepId, status] of Object.entries(currentSteps)) {
+      const mappedStage = STEP_TO_STAGE[stepId] || stepId;
+      const idx = PIPELINE_STAGES.findIndex(s => s.id === mappedStage);
+      if (idx > highestActiveIndex && (status === 'in_progress' || status === 'completed' || status === 'done')) {
+        highestActiveIndex = idx;
       }
-      return prev;
-    });
-  }, []);
+    }
 
-  const addFeedItem = useCallback((msg) => {
-    if (!msg) return;
-    setFeedItems(prev => [
-      ...prev.slice(-20),
-      { msg, ts: Date.now() },
-    ]);
-  }, []);
+    if (currentSteps.all_done) return stageIndex <= highestActiveIndex ? 'done' : 'idle';
+    if (stageIndex < highestActiveIndex) return 'done';
+    if (stageIndex === highestActiveIndex) {
+      // Active: at least one step in this stage is in_progress
+      const hasActive = Object.entries(currentSteps).some(([stepId, status]) => {
+        return STEP_TO_STAGE[stepId] === stage.id && status === 'in_progress';
+      });
+      return hasActive ? 'active' : 'done';
+    }
+    return 'idle';
+  }, [currentSteps]);
 
-  const handleAnalyze = (url) => {
-    if (closeStreamRef.current) closeStreamRef.current();
+  // ── handleAnalyze: called by HeroInput on form submit ─────────────────────
+  const handleAnalyze = useCallback((url) => {
+    // Cancel any in-flight stream
+    if (cleanupRef.current) cleanupRef.current();
+
     setLoading(true);
     setError(null);
     setResult(null);
     setCurrentSteps({});
-    setHeroStage(1);
-    setHeadlineIdx(0);
     setFeedItems([]);
-    setAnalysisStartTs(Date.now());
-    setAnalysisEndTs(null);
-    setAnalystStatus(null);
+    setStartTs(Date.now());
+    setEndTs(null);
 
-    closeStreamRef.current = streamWebsiteAnalysis(
+    const cleanup = streamWebsiteAnalysis(
       url,
+      // onStep
       (stepEvent) => {
-        const stepId = stepEvent.step?.toLowerCase?.() || '';
+        const stepId = stepEvent.step;
         setCurrentSteps(prev => ({
           ...prev,
           [stepId]: stepEvent.status || 'completed',
         }));
-        advanceStage(stepId);
-        if (stepEvent.message) addFeedItem(stepEvent.message);
+        if (stepEvent.message) {
+          setFeedItems(prev => [...prev, { ts: Date.now(), msg: stepEvent.message }]);
+        }
       },
+      // onResult
       (analysisData) => {
-        setAnalysisEndTs(Date.now());
+        const now = Date.now();
         setCurrentSteps(prev => ({ ...prev, all_done: true }));
-        advanceStage('all_done');
         setResult(analysisData);
         setLoading(false);
-        setAnalystStatus('pending');
+        setEndTs(now);
+        cleanupRef.current = null;
       },
+      // onError
       (err) => {
         console.error('Analysis error:', err);
-        setAnalysisEndTs(Date.now());
-        setError(err.message || 'Analysis failed. Make sure backend is running.');
+        setError(err.message || 'Analysis failed. Make sure the backend is running.');
         setLoading(false);
-        setHeroStage(0);
-        setHeadlineIdx(0);
-      },
+        setEndTs(Date.now());
+        cleanupRef.current = null;
+      }
     );
-  };
 
-  // Demo scenario handler — receives result directly from DemoMode
-  const handleDemoResult = (analysisData) => {
-    if (closeStreamRef.current) closeStreamRef.current();
-    setLoading(false);
+    cleanupRef.current = cleanup;
+    return cleanup;
+  }, []);
+
+  // ── handleDemoResult: called by DemoMode when a fixture result is ready ───
+  const handleDemoResult = useCallback((demoData) => {
+    setResult(demoData);
     setError(null);
-    setResult(analysisData);
+    setLoading(false);
     setCurrentSteps({ all_done: true });
-    setHeroStage(3);
-    setHeadlineIdx(2);
-    setAnalysisStartTs(Date.now());
-    setAnalysisEndTs(Date.now());
-    setAnalystStatus('pending');
-    addFeedItem('Demo scenario loaded from deterministic fixture.');
-  };
+    setFeedItems([]);
+    setStartTs(null);
+    setEndTs(null);
+  }, []);
 
-  const PIPELINE_STAGES = [
-    { id: 'crawl',    label: 'CRAWL',    steps: ['crawl', 'extract', 'prioritize'] },
-    { id: 'discover', label: 'DISCOVER', steps: ['search', 'candidates'] },
-    { id: 'verify',   label: 'VERIFY',   steps: ['vit', 'logo', 'reuse', 'manipulation', 'identity'] },
-    { id: 'score',    label: 'SCORE',    steps: ['fusion', 'completed'] },
-  ];
+  // ── handleReset: clears result and error ──────────────────────────────────
+  const handleReset = useCallback(() => {
+    setResult(null);
+    setError(null);
+    setCurrentSteps({});
+    setFeedItems([]);
+  }, []);
 
-  const getStageStatus = (stage) => {
-    if (currentSteps.all_done) return 'done';
-    const anyActive = stage.steps.some(s =>
-      currentSteps[s] === 'in_progress' || currentSteps[s] === 'running'
-    );
-    if (anyActive) return 'active';
-    const allDone = stage.steps.some(s =>
-      currentSteps[s] === 'completed' || currentSteps[s] === 'done'
-    );
-    if (allDone) return 'done';
-    return 'idle';
-  };
-
-  const fusionEvidence = result?.evidence || result?.structured_evidence || result?.candidate_evidence || [];
-
-  // Analyst workflow action labels
-  const ANALYST_ACTIONS = [
-    { id: 'pending',            label: 'PENDING REVIEW', class: 'tag-amber' },
-    { id: 'reviewed',           label: 'REVIEWED',       class: 'tag-green' },
-    { id: 'needs_verification', label: 'NEEDS VERIFICATION', class: 'tag-amber' },
-    { id: 'escalated',          label: 'ESCALATED',      class: 'tag-red' },
-  ];
+  // BUG-04 FIX: candidate_evidence is the list to show in EvidenceFusionCards
+  // (those are the online web + platform ViT candidates).
+  // result.evidence is the fused asset evidence list used in EvidenceGrid internally.
+  const candidateEvidence = result?.candidate_evidence ?? [];
 
   return (
     <>
-      <a href="#main-content" className="skip-to-content">Skip to main content</a>
+      {/* Skip-to-content for accessibility */}
+      <a href="#main-content" className="skip-to-content">Skip to content</a>
 
-      {/* ── Prototype Banner ── */}
-      <div className="prototype-banner">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--amber)', flexShrink: 0 }}>
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        </svg>
-        <span>
-          <strong>DECISION-SUPPORT SYSTEM FOR HUMAN RISK ANALYSTS:</strong>{' '}
-          This engine produces explainable empirical visual signals to assist risk reviewers.
-          It <span style={{ textDecoration: 'underline' }}>never</span> automatically rejects merchants.
-        </span>
-      </div>
-
-      {/* ── Nav Bar ── */}
-      <nav className="nav-bar" aria-label="Main navigation">
-        <span className="nav-wordmark">Evidence Engine</span>
-        <div className="nav-right">
-          <span className="nav-version">v2.4.1</span>
-          <button
-            className="btn-primary"
-            style={{ padding: '0.45rem 1rem', fontSize: '11px' }}
-            onClick={() => {
-              setResult(null);
-              setError(null);
-              setHeroStage(0);
-              setHeadlineIdx(0);
-              setAnalysisStartTs(null);
-              setAnalystStatus(null);
-            }}
-          >
-            New Analysis
-          </button>
-        </div>
-      </nav>
-
-      {/* ── Hero ── */}
-      <section className="hero-section" aria-label="Hero input">
-        <div
-          className="hero-bg"
-          data-stage={heroStage}
-          role="presentation"
-          aria-hidden="true"
-        />
-        <div className="hero-content">
-          <span className="eyebrow">Visual Fraud Intelligence</span>
-
-          <div className="hero-headline-wrap" aria-live="polite">
-            {HERO_HEADLINES.map((h, i) => (
-              <h1
-                key={i}
-                className={`hero-headline${i === headlineIdx ? ' active' : ''}`}
-                aria-hidden={i !== headlineIdx}
-              >
-                {h}
-              </h1>
-            ))}
-          </div>
-
-          <p style={{ fontFamily: 'Inter', fontSize: '16px', color: 'var(--muted)', maxWidth: '540px', lineHeight: 1.6, marginTop: '-0.25rem' }}>
-            Autonomous crawl, visual discovery, and ViT verification for merchant risk underwriting.
-          </p>
-
-          <HeroInput
-            onAnalyze={handleAnalyze}
-            loading={loading}
-            currentSteps={currentSteps}
-            pipelineStages={PIPELINE_STAGES}
-            getStageStatus={getStageStatus}
-            feedItems={feedItems}
-          />
-        </div>
-      </section>
-
-      {/* ── Persistent Analysis Counter ── */}
+      {/* Fixed-position analysis timer (BUG-05 FIX: now mounts with proper state) */}
       <AnalysisCounter
-        startTs={analysisStartTs}
-        endTs={analysisEndTs}
+        startTs={startTs}
+        endTs={endTs}
         loading={loading}
-        visible={loading || (result !== null && analysisStartTs !== null)}
+        visible={startTs !== null}
       />
 
-      {/* ── Main Content ── */}
+      <Header />
+
       <main id="main-content" className="page-container">
 
-        {/* ── Demo Scenarios (always visible when not loading and no result) ── */}
-        {!loading && !result && (
-          <div className="section-block" style={{ paddingTop: '2.5rem' }}>
-            <div className="section-header" style={{ marginBottom: '1rem' }}>
-              <span className="eyebrow">Hackathon Judge Walkthrough</span>
-              <h2 className="section-headline">3 Deterministic Demo Scenarios</h2>
+        {/* ── Hero Section: Cinematic headline + URL input ─────────────────── */}
+        <section className="hero-section">
+          {/* Background image layer — dims once analysis starts */}
+          <div
+            className="hero-bg"
+            data-stage={result ? '3' : loading ? '1' : '0'}
+            aria-hidden="true"
+          />
+
+          <div className="hero-content">
+            <span className="eyebrow">RAZORPAY · VISUAL RISK INTELLIGENCE</span>
+
+            <div className="hero-headline-wrap">
+              <h1 className="hero-headline active">
+                {loading
+                  ? 'Analysing\nMerchant Evidence…'
+                  : result
+                  ? 'Risk Dossier\nReady'
+                  : 'Is this merchant\nwho they claim to be?'}
+              </h1>
+            </div>
+
+            <p style={{
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '15px',
+              color: 'var(--muted)',
+              maxWidth: '560px',
+              lineHeight: 1.6,
+              textAlign: 'center',
+            }}>
+              Multimodal visual intelligence engine — crawls the merchant website,
+              discovers online candidate evidence, verifies with Vision Transformers,
+              and produces an explainable underwriting dossier.
+            </p>
+
+            {/* BUG-06 & BUG-07 FIX: use HeroInput with pipelineStages + getStageStatus */}
+            <HeroInput
+              onAnalyze={handleAnalyze}
+              loading={loading}
+              currentSteps={currentSteps}
+              pipelineStages={PIPELINE_STAGES}
+              getStageStatus={getStageStatus}
+              feedItems={feedItems}
+            />
+          </div>
+        </section>
+
+        {/* ── Demo Scenarios ───────────────────────────────────────────────── */}
+        {/* BUG-08 FIX: DemoMode is now rendered */}
+        {!loading && (
+          <section className="section-block" aria-label="Demo scenarios">
+            <div className="section-header">
+              <span className="eyebrow">DETERMINISTIC DEMOS</span>
+              <h2 className="section-headline">Judge Walkthrough Scenarios</h2>
               <p className="section-subtext">
-                Each scenario runs against a fixed offline fixture — no live external search dependency.
-                Results are reproducible and deterministic.
+                Pre-built fixture cases that run offline — no live crawl dependency.
+                Each demonstrates a distinct risk tier and evidence interpretation pathway.
               </p>
             </div>
             <DemoMode onResult={handleDemoResult} loading={loading} />
-          </div>
+          </section>
         )}
 
-        {/* ── Error state ── */}
+        {/* ── Error Banner ─────────────────────────────────────────────────── */}
         {error && (
           <div
-            className="notice-banner red-notice"
-            role="alert"
+            className="notice-banner amber-notice"
             style={{ marginTop: '2rem' }}
+            role="alert"
           >
-            <AlertTriangle size={18} color="var(--risk-red)" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <AlertTriangle size={18} color="var(--risk-amber)" style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
               <div className="notice-banner-title">Analysis Notice</div>
               <div className="notice-banner-body">{error}</div>
@@ -267,102 +254,82 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Results ── */}
+        {/* ── Results ──────────────────────────────────────────────────────── */}
         {result && (
-          <ErrorBoundary onReset={() => { setResult(null); setError(null); }}>
+          <ErrorBoundary onReset={handleReset}>
 
-            {/* ── TOP: Risk Verdict ── */}
-            <div className="section-block" style={{ paddingTop: '3rem' }}>
+            {/* Section 1: Verdict + Score Cards */}
+            <section className="section-block" aria-label="Risk verdict">
               <RiskCards
                 fusion={result.fusion}
                 claims={result.claims}
                 webDetectionMode={result.web_detection_mode}
                 webDetectionSimulated={result.web_detection_simulated}
               />
-            </div>
+            </section>
 
-            {/* ── Analyst Workflow Status ── */}
-            {analystStatus && (
-              <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <span className="eyebrow" style={{ fontSize: '10px' }}>ANALYST WORKFLOW</span>
-                  <span className={`tag ${ANALYST_ACTIONS.find(a => a.id === analystStatus)?.class || 'tag-amber'}`}>
-                    {ANALYST_ACTIONS.find(a => a.id === analystStatus)?.label || analystStatus.toUpperCase()}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {ANALYST_ACTIONS.map(a => (
-                    <button
-                      key={a.id}
-                      className="btn-secondary"
-                      style={{ padding: '0.3rem 0.8rem', fontSize: '10px', opacity: analystStatus === a.id ? 1 : 0.55 }}
-                      onClick={() => setAnalystStatus(a.id)}
-                    >
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Section 2: Why This Decision (BUG-08 FIX) */}
+            <section className="section-block" aria-label="Decision explanation">
+              <WhyDecision
+                fusion={result.fusion}
+                reuse={result.reuse}
+                logo={result.logo}
+                manipulation={result.manipulation}
+                identity={result.identity}
+              />
+            </section>
 
-            {/* ── WHY THIS DECISION? ── */}
-            <WhyDecision
-              fusion={result.fusion}
-              reuse={result.reuse}
-              logo={result.logo}
-              manipulation={result.manipulation}
-              identity={result.identity}
-            />
+            {/* Section 3: Visual Merchant Profile (BUG-08 FIX) */}
+            <section className="section-block" aria-label="Merchant fingerprint">
+              <MerchantFingerprint
+                fusion={result.fusion}
+                reuse={result.reuse}
+                logo={result.logo}
+                manipulation={result.manipulation}
+                identity={result.identity}
+              />
+            </section>
 
-            {/* ── VISUAL MERCHANT PROFILE ── */}
-            <MerchantFingerprint
-              reuse={result.reuse}
-              logo={result.logo}
-              manipulation={result.manipulation}
-              identity={result.identity}
-              fusion={result.fusion}
-            />
+            {/* Section 4: Pipeline Performance (BUG-08 FIX) */}
+            <section aria-label="Pipeline performance">
+              <PipelinePerformance fusion={result.fusion} result={result} />
+            </section>
 
-            {/* ── PIPELINE PERFORMANCE ── */}
-            <PipelinePerformance fusion={result.fusion} result={result} />
-
-            {/* ── CLAIM VS EVIDENCE ── */}
-            <div className="section-block">
+            {/* Section 5: Claims vs Evidence */}
+            <section className="section-block" aria-label="Claims vs evidence">
               <div className="section-header">
-                <span className="eyebrow">Claim Analysis Layer</span>
-                <h2 className="section-headline">Evidence vs. Claim Reasoning</h2>
-                <p className="section-subtext">Does the visual evidence support or contradict what the merchant claims?</p>
+                <span className="eyebrow">EVIDENCE AUDIT</span>
+                <h2 className="section-headline">Claims vs. Visual Evidence</h2>
+                <p className="section-subtext">
+                  Each merchant claim is cross-referenced against the multimodal evidence gathered.
+                </p>
               </div>
               <ClaimVsEvidence
                 claimsReasoning={result.claims_reasoning}
                 structuredEvidence={result.structured_evidence}
                 claims={result.claims}
               />
-            </div>
+            </section>
 
-            {/* ── EVIDENCE FUSION ── */}
-            {fusionEvidence.length > 0 && (
-              <div className="section-block">
+            {/* Section 6: Candidate Evidence Fusion Cards (BUG-04 FIX) */}
+            {candidateEvidence.length > 0 && (
+              <section className="section-block" aria-label="Candidate evidence">
                 <div className="section-header">
-                  <span className="eyebrow">Evidence Fusion Layer</span>
-                  <h2 className="section-headline">Visual Evidence Exhibits</h2>
+                  <span className="eyebrow">ONLINE CANDIDATE DISCOVERY</span>
+                  <h2 className="section-headline">Evidence Fusion Exhibits</h2>
                   <p className="section-subtext">
-                    Cross-references each extracted asset across public web discovery sources and platform ViT embeddings.
-                    {' '}<span style={{ color: 'var(--amber)', fontFamily: 'JetBrains Mono', fontSize: '13px' }}>
-                      {fusionEvidence.length} exhibits analyzed
-                    </span>
+                    Visual assets discovered via web reverse search and verified via ViT cosine embeddings.
                   </p>
                 </div>
-                <EvidenceFusionCards evidence={fusionEvidence} />
-              </div>
+                <EvidenceFusionCards evidence={candidateEvidence} />
+              </section>
             )}
 
-            {/* ── FORENSIC METRICS ── */}
-            <div className="section-block">
+            {/* Section 7: 4-Metric Evidence Grid */}
+            <section className="section-block" aria-label="Evidence metrics">
               <div className="section-header">
-                <span className="eyebrow">Forensic Signal Breakdown</span>
-                <h2 className="section-headline">Empirical Visual Metrics</h2>
-                <p className="section-subtext">Real-time algorithmic measurements from Vision Transformer embeddings and computer vision filters.</p>
+                <span className="eyebrow">FORENSIC METRICS</span>
+                <h2 className="section-headline">Visual Risk Breakdown</h2>
               </div>
               <EvidenceGrid
                 reuse={result.reuse}
@@ -370,29 +337,29 @@ export default function App() {
                 manipulation={result.manipulation}
                 identity={result.identity}
               />
-            </div>
+            </section>
 
-            {/* ── HEATMAP & DEEP DIVE ── */}
-            <div className="section-block">
+            {/* Section 8: Deep-dive tabs — heatmap, forensics, JSON */}
+            <section className="section-block" aria-label="Deep analysis">
               <div className="section-header">
-                <span className="eyebrow">Forensic Deep-Dive</span>
-                <h2 className="section-headline">Analysis Breakdown</h2>
-                <p className="section-subtext">Candidate matches, ELA heatmaps, multimodal audit, backbone provenance and raw JSON export.</p>
+                <span className="eyebrow">DEEP ANALYSIS</span>
+                <h2 className="section-headline">Visual Forensics & Dossier</h2>
               </div>
               <HeatmapViewer result={result} />
-            </div>
+            </section>
 
           </ErrorBoundary>
         )}
 
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="site-footer">
-        <span className="footer-wordmark">Evidence Engine</span>
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer className="site-footer" role="contentinfo">
+        <span className="footer-wordmark">Visual Risk Intelligence Engine</span>
         <p className="footer-copy">
-          Visual Risk Intelligence · Razorpay AI Risk Manager<br />
-          Decision Support — never automatically rejects merchants.
+          🛡️ Razorpay AI Risk Manager · Decision Support System for Human Risk Analysts
+          <br />
+          Never automatically rejects merchants — all outputs are advisory.
         </p>
       </footer>
     </>

@@ -26,7 +26,7 @@ export default function WhyDecision({ fusion, reuse, logo, manipulation, identit
     const isSupplier = srcType === 'SUPPLIER_CATALOG' || srcType === 'MARKETPLACE';
 
     if (maxSim > 0.3 || reuseScore > 10) {
-      const isActive = reuseScore >= 70 && !isSupplier && matchStatus === 'CORROBORATED';
+      const isActive = reuseScore >= 70 && !isSupplier && matchStatus === 'CORROBORATED_EXTERNAL_MATCH';
       const isSuppressed = isSupplier;
       const isInsufficient = matchStatus === 'INSUFFICIENT_EVIDENCE' || matchStatus === 'NO_EXTERNAL_MATCH';
 
@@ -38,7 +38,7 @@ export default function WhyDecision({ fusion, reuse, logo, manipulation, identit
           ? 'Source classified as supplier/catalog — excluded from severe escalation.'
           : isInsufficient
           ? 'Single fixture match — insufficient corroboration for escalation.'
-          : matchStatus === 'CORROBORATED'
+          : matchStatus === 'CORROBORATED_EXTERNAL_MATCH'
           ? 'Multi-source corroborated evidence.'
           : `Evidence status: ${matchStatus.replace('_', ' ')}`,
         active: isActive,

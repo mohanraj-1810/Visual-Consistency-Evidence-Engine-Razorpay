@@ -1025,6 +1025,19 @@ code, pre, .data-mono { font-family: 'JetBrains Mono', monospace; }
 }
 .prototype-banner strong { color: var(--cream); }
 
+/* Header brand (previously h1, demoted to avoid duplicate h1) */
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--cream);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
 /* ══════════════════════════════════════════════════════
    LOADING SKELETON / SPINNER
 ══════════════════════════════════════════════════════ */

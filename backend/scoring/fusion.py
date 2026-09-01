@@ -370,13 +370,17 @@ def fuse_risk_scores(
     mch_str = ", ".join(masked_mchs) if masked_mchs else None
     ref_source = mch_str or top_cand.get("source_domain") or top_cand.get("reference_filename") or "external web source"
     is_own_brand = reuse_data.get("is_own_brand_candidate", False)
+    cand_src_type_reason = top_cand.get("source_type", "NONE")
+    is_supplier_cand_reason = cand_src_type_reason in ("SUPPLIER_CATALOG", "MARKETPLACE", "SOFT_TRUST")
 
-    if max_sim >= 0.85 and not is_own_brand:
-        reasons.append(f"Product imagery strongly matches candidate visual ({int(round(max_sim * 100))}% ViT similarity with {ref_source}) — Potential Visual Misrepresentation.")
-    elif max_sim >= 0.70 and not is_own_brand:
-        reasons.append(f"Product imagery exhibits moderate visual similarity ({int(round(max_sim * 100))}%) to candidate on {ref_source}.")
-    elif is_own_brand:
+    if is_own_brand:
         reasons.append("No external visual matches discovered online — visual content appears unique and proprietary to this merchant.")
+    elif is_supplier_cand_reason and max_sim >= 0.70:
+        reasons.append(f"Product imagery matches supplier/distributor catalog on {ref_source} ({int(round(max_sim * 100))}% ViT similarity) — consistent with authorized reseller sourcing, not misrepresentation.")
+    elif max_sim >= 0.85:
+        reasons.append(f"Product imagery strongly matches candidate visual ({int(round(max_sim * 100))}% ViT similarity with {ref_source}) — Potential Visual Misrepresentation.")
+    elif max_sim >= 0.70:
+        reasons.append(f"Product imagery exhibits moderate visual similarity ({int(round(max_sim * 100))}%) to candidate on {ref_source}.")
 
     # 2. Logo explanation
     logo_sim = logo_data.get("similarity", 1.0)

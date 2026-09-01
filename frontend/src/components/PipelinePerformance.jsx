@@ -9,7 +9,7 @@ export default function PipelinePerformance({ fusion, result }) {
   if (!fusion) return null;
 
   const latencyMs = result?.pipeline_latency_ms ?? fusion?.pipeline_latency_ms ?? null;
-  const imgStats = result?.image_processing_stats;
+  const imgStats = result?.image_processing_metrics ?? result?.image_processing_stats;
   const numProducts = imgStats?.selected_representative_count ?? result?.product_images_base64?.filter(Boolean).length ?? null;
   const totalRaw = imgStats?.total_raw_count ?? null;
   const evidenceCount = (result?.evidence ?? result?.candidate_evidence ?? []).length;
