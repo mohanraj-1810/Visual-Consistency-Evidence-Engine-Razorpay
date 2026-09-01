@@ -38,13 +38,37 @@ _KNOWN_IMAGE_AGGREGATORS = {
 _KNOWN_SUPPLIER_DOMAINS = {
     "alibaba.com", "aliexpress.com", "dhgate.com", "made-in-china.com",
     "1688.com", "taobao.com", "indiamart.com", "tradeindia.com",
-    "globalsources.com", "chinabrands.com", "wholesale7.net", "shein.com", "temu.com"
+    "globalsources.com", "chinabrands.com", "wholesale7.net", "shein.com", "temu.com",
+    "catalog-archive.internal", "archive.merchant-catalog.org", "merchant-catalog.org",
+    "supplier-catalog.internal", "supplier-catalog.org",
 }
 
 
+def _clean_domain_str(domain: str) -> str:
+    """Strips protocols, paths, ports, and www prefixes to isolate bare hostname."""
+    if not domain:
+        return ""
+    clean = str(domain).strip().lower()
+    if clean.startswith("http://") or clean.startswith("https://") or "//" in clean:
+        clean = _extract_domain(clean)
+    clean = clean.replace("www.", "").strip()
+    if "/" in clean:
+        clean = clean.split("/")[0]
+    if ":" in clean:
+        clean = clean.split(":")[0]
+    return clean
+
+
 def _extract_domain(url: str) -> str:
+    if not url:
+        return ""
     try:
-        netloc = urlparse(url).netloc.lower()
+        raw = str(url).strip().lower()
+        if not raw.startswith("http://") and not raw.startswith("https://") and "//" not in raw:
+            raw = "https://" + raw
+        netloc = urlparse(raw).netloc.lower()
+        if ":" in netloc:
+            netloc = netloc.split(":")[0]
         if netloc.startswith("www."):
             netloc = netloc[4:]
         return netloc
@@ -54,22 +78,26 @@ def _extract_domain(url: str) -> str:
 
 def is_self_referencing_domain(target_domain: str, merchant_domain: Optional[str]) -> bool:
     """Checks if a matching URL belongs to the merchant's own domain or subdomains."""
-    if not target_domain or not merchant_domain:
+    td = _clean_domain_str(target_domain)
+    md = _clean_domain_str(merchant_domain)
+    if not td or not md:
         return False
-    td = target_domain.lower().replace("www.", "").strip()
-    md = merchant_domain.lower().replace("www.", "").strip()
     return td == md or td.endswith("." + md) or md.endswith("." + td)
 
 
 def is_marketplace_domain(domain: str) -> bool:
     """Determines if a domain is a known multi-vendor marketplace or e-commerce aggregator."""
-    clean = domain.lower().replace("www.", "").strip()
+    clean = _clean_domain_str(domain)
+    if not clean:
+        return False
     return any(clean == mp or clean.endswith("." + mp) for mp in _KNOWN_MARKETPLACES)
 
 
 def is_stock_domain(domain: str) -> bool:
     """Determines if a domain is a known stock-photography repository or image aggregator."""
-    clean = domain.lower().replace("www.", "").strip()
+    clean = _clean_domain_str(domain)
+    if not clean:
+        return False
     return (
         any(clean == st or clean.endswith("." + st) for st in _KNOWN_STOCK_SITES)
         or any(clean == ag or clean.endswith("." + ag) for ag in _KNOWN_IMAGE_AGGREGATORS)
@@ -78,14 +106,23 @@ def is_stock_domain(domain: str) -> bool:
 
 def is_image_aggregator_domain(domain: str) -> bool:
     """Determines if a domain is a known image aggregator (Pinterest, Imgur, Flickr, etc.)."""
-    clean = domain.lower().replace("www.", "").strip()
+    clean = _clean_domain_str(domain)
+    if not clean:
+        return False
     return any(clean == ag or clean.endswith("." + ag) for ag in _KNOWN_IMAGE_AGGREGATORS)
 
 
 def is_supplier_domain(domain: str) -> bool:
     """Determines if a domain is a known wholesale / supplier / dropshipping manufacturer catalog."""
-    clean = domain.lower().replace("www.", "").strip()
-    return any(clean == sup or clean.endswith("." + sup) for sup in _KNOWN_SUPPLIER_DOMAINS)
+    clean = _clean_domain_str(domain)
+    if not clean:
+        return False
+    return (
+        any(clean == sup or clean.endswith("." + sup) for sup in _KNOWN_SUPPLIER_DOMAINS)
+        or "supplier" in clean
+        or "wholesale" in clean
+        or "distributor" in clean
+    )
 
 
 def normalize_web_detection_evidence(

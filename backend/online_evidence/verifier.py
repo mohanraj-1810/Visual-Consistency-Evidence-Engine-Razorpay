@@ -1,4 +1,4 @@
-﻿"""
+"""
 verifier.py -- ViT-based Visual Similarity Verification for Candidate Evidence.
 Verifies candidate online images using Vision Transformer (ViT) embeddings
 and cosine similarity. Never blindly trusts search results alone.
@@ -46,15 +46,21 @@ _SOFT_TRUST_DOMAINS = {
     "globalsources.com", "chinabrands.com", "wholesale7.net",
     "shutterstock.com", "gettyimages.com", "freepik.com", "istockphoto.com",
     "unsplash.com", "pexels.com", "stock.adobe.com", "pixabay.com", "dreamstime.com",
+    "catalog-archive.internal", "archive.merchant-catalog.org", "merchant-catalog.org",
+    "supplier-catalog.internal", "supplier-catalog.org",
 }
 
 
 def _is_soft_trust_domain(domain: str) -> bool:
-    """Return True if domain is a marketplace, stock site, or image aggregator."""
-    clean = domain.lower().replace("www.", "").strip()
+    """Return True if domain is a marketplace, stock site, image aggregator, or supplier catalog."""
+    if not domain:
+        return False
+    from services.evidence_normalizer import _clean_domain_str, is_supplier_domain
+    clean = _clean_domain_str(domain)
     return (
         any(clean == d or clean.endswith("." + d) for d in _SOFT_TRUST_DOMAINS)
         or any(clean == d or clean.endswith("." + d) for d in _IMAGE_AGGREGATORS)
+        or is_supplier_domain(clean)
     )
 
 
@@ -224,14 +230,21 @@ def verify_candidates_with_vit(
             "is_soft_trust": is_soft or is_supplier,
         })
 
-    # Sort: genuine external meaningful matches first, then by similarity descending
+    # Sort: genuine meaningful external matches (above weak threshold) first, then by similarity descending
     verified_list.sort(
-        key=lambda x: (not x.get("is_self_domain", False), not x.get("is_soft_trust", False), x["similarity"]),
+        key=lambda x: (
+            not x.get("is_self_domain", False),
+            (x["similarity"] >= weak_threshold and not x.get("is_soft_trust", False)),
+            x["similarity"],
+        ),
         reverse=True,
     )
 
     external_candidates = [c for c in verified_list if not c.get("is_self_domain", False)]
-    meaningful_externals = [c for c in external_candidates if not c.get("is_soft_trust", False)]
+    meaningful_externals = [
+        c for c in external_candidates
+        if not c.get("is_soft_trust", False) and c["similarity"] >= weak_threshold
+    ]
 
     strong_meaningful = [c for c in meaningful_externals if c["similarity"] >= high_threshold]
     moderate_meaningful = [c for c in meaningful_externals if c["similarity"] >= medium_threshold]

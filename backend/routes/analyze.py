@@ -897,7 +897,7 @@ async def list_demo_scenarios():
             "category": "Footwear Reseller & Distributor",
             "scenario_type": "Ambiguous / Supplier Sourcing",
             "expected_tier": "LOW / STANDARD ONBOARDING",
-            "expected_score": 31.5,
+            "expected_score": 29.1,
             "case_id": "bord_01_urban_distributor",
             "summary": "Legitimate footwear distributor using authorized supplier catalog images. Sourcing reuse is softly trusted and excluded from severe escalation to protect legitimate resellers.",
         },

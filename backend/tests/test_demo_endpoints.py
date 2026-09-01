@@ -46,14 +46,26 @@ def test_clean_demo_scenario_execution():
 
 
 def test_supplier_demo_scenario_execution():
-    """Verify supplier scenario produces LOW tier and excludes catalog matches from severe risk."""
+    """Verify supplier scenario produces LOW risk and excludes supplier catalog matches from severe risk."""
     response = client.get("/api/demo-scenario/supplier")
     assert response.status_code == 200
     data = response.json()
     
     assert "fusion" in data
-    assert data["fusion"]["status_tier"] == "LOW"
-    assert data["fusion"]["status_tier"] != "HIGH"
+    assert data["fusion"]["status"] == "LOW"
+    assert data["fusion"]["status"] != "HIGH"
+    assert data["fusion"]["status_tier"] in ["LOW", "CLEAR"]
+    assert data["fusion"]["final_risk_score"] < 40.0
+    
+    # Assert soft-trust handling in reuse data
+    reuse = data.get("reuse", {})
+    assert reuse.get("match_status") in ["INSUFFICIENT_EVIDENCE", "NO_EXTERNAL_MATCH"]
+    assert reuse.get("e4_score", 0.0) <= 25.0
+    
+    # Assert logo is not penalized against unrelated brand identity
+    logo = data.get("logo", {})
+    assert logo.get("inconsistency_risk", 0.0) < 30.0
+    assert logo.get("matched_reference") is None or "apex" not in str(logo.get("matched_reference")).lower()
 
 
 def test_counterfeit_demo_scenario_execution():

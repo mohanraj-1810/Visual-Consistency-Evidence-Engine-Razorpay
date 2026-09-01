@@ -333,18 +333,32 @@ class LocalReferenceEvidenceProvider(BaseEvidenceProvider):
         valid_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
         ref_files = [f for f in self.reference_dir.iterdir() if f.is_file() and f.suffix.lower() in valid_exts]
 
+        # Specific source domain and metadata per fixture asset to represent its true provenance
+        fixture_metadata = {
+            "ref_sneaker_airmax": ("catalog-archive.internal", "https://catalog-archive.internal/assets/ref_sneaker_airmax.jpg", "Supplier Wholesale Catalog Archive"),
+            "ref_handbag_leather": ("luxe-atelier-boutique.com", "https://luxe-atelier-boutique.com/assets/ref_handbag_leather.jpg", "Luxe Atelier Brand Catalog"),
+            "ref_luxury_watch_omega": ("apex-chronographs.com", "https://apex-chronographs.com/assets/ref_luxury_watch_omega.jpg", "Apex Horology Flagship"),
+            "ref_electronics_headphones": ("apex-audio.com", "https://apex-audio.com/assets/ref_electronics_headphones.jpg", "Apex Audio Flagship"),
+        }
+
         candidates: List[Dict[str, Any]] = []
         for idx, f in enumerate(ref_files[:max_candidates]):
             try:
                 img = Image.open(f).convert("RGB")
                 clean_name = f.stem.replace("_", "-").lower()
-                mock_domain = f"catalog-archive.internal/{clean_name}"
-                mock_url = f"https://archive.merchant-catalog.org/assets/{f.name}"
+                meta = fixture_metadata.get(f.stem)
+                if meta:
+                    mock_domain, mock_url, title_label = meta
+                else:
+                    mock_domain = f"{clean_name}.com"
+                    mock_url = f"https://{clean_name}.com/assets/{f.name}"
+                    title_label = f"Reference: {f.name}"
+
                 candidates.append({
                     "image": img,
                     "source_url": mock_url,
                     "source_domain": mock_domain,
-                    "title": f"Catalog Reference: {f.name}",
+                    "title": title_label,
                     "source_type": "LOCAL_TEST_FIXTURE",
                     "candidate_id": f"local_ref_{idx}_{f.stem}",
                     "local_path": str(f),

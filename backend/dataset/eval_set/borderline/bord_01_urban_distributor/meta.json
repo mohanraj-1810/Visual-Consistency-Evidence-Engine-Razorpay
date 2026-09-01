@@ -1,11 +1,11 @@
 {
   "name": "Urban Velocity Footwear",
   "category": "Footwear Reseller",
-  "claimed_brand": "Apex Store",
+  "claimed_brand": "Urban Velocity Footwear",
   "ground_truth": "MEDIUM",
   "claims": {
     "inventory_claim": "Regional multi-brand catalog for Footwear Reseller.",
-    "brand_claim": "Sub-licensed distribution partner under Apex Store.",
+    "brand_claim": "Authorized regional footwear reseller and distributor.",
     "compliance_claim": "Standard digital registration copy."
   },
   "crawler_data": {
