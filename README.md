@@ -13,6 +13,7 @@
 
 **Explainable Visual Risk Intelligence & Evidence Corroboration Engine for Merchant Underwriting and Onboarding.**
 
+[📚 Documentation Hub](#-documentation-hub) •
 [Key Capabilities](#-key-capabilities) •
 [Architecture](#-system-architecture) •
 [Decision Matrix](#-risk-decisioning--corroboration-gate) •
@@ -21,6 +22,20 @@
 [API Reference](#-api-reference)
 
 </div>
+
+---
+
+## 📚 Documentation Hub
+
+Explore our dedicated documentation guides organized by topic and audience:
+
+| Document | Audience | Highlights |
+| :--- | :--- | :--- |
+| 🐳 [**Docker Deployment Guide**](docs/DOCKER.md) | DevOps & Evaluators | Instant zero-dependency container deployment & debugging |
+| ⚖️ [**Judge & Evaluator FAQ**](docs/JUDGE_FAQ.md) | Technical Evaluators | Detailed Q&A on ViT, ELA, SSRF, and false-positive gating |
+| 🎬 [**Live 3-Minute Demo Script**](docs/DEMO_SCRIPT.md) | Presenters & Judges | Scripted demo flow covering Clean, Dropshipper, & Tampered cases |
+| 🏆 [**Buildathon Submission Spec**](docs/BUILDATHON.md) | Evaluators | Problem statement fulfillment, innovation moat & metrics |
+| 🔬 [**Forensic Audit Report**](backend/evaluation/HIGH_RISK_AUDIT.md) | ML & Risk Engineers | 23-merchant evaluation audit & corroboration performance |
 
 ---
 
@@ -213,7 +228,7 @@ docker compose up --build
 - **Interactive OpenAPI Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Health Endpoint:** [http://localhost:8000/health](http://localhost:8000/health)
 
-*(See [DOCKER.md](file:///d:/razorpay/DOCKER.md) for full container debugging & architecture notes)*
+*(See [docs/DOCKER.md](docs/DOCKER.md) for full container debugging & architecture notes)*
 
 ---
 

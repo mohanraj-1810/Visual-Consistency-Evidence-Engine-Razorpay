@@ -1,44 +1,69 @@
-# ── Python ──────────────────────────────────────────────
+# ==============================================================================
+# Git Ignore Configuration
+# Project: Visual Consistency & Online Evidence Engine (Razorpay Buildathon)
+# Architecture: Monorepo (FastAPI Backend + React/Vite Frontend + ML Pipelines)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Python Environment & Compilation
+# ------------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 *.pyd
 .Python
+
+# Virtual Environments
 .venv/
 venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 **/venv/
 **/env/
-*.egg-info/
-.installed.cfg
-*.egg
+
+# Packaging & Distribution
 build/
-dist/
 develop-eggs/
+dist/
 downloads/
 eggs/
 .eggs/
+lib/
+lib64/
 parts/
+sdist/
 var/
 wheels/
 share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# ── Testing & Code Quality ──────────────────────────────
+# ------------------------------------------------------------------------------
+# 2. Testing, Code Quality & Type Checking
+# ------------------------------------------------------------------------------
 .pytest_cache/
 .coverage
 .coverage.*
 htmlcov/
 coverage.xml
+nosetests.xml
 *.cover
+*.py,cover
 .mypy_cache/
 .ruff_cache/
 .pyre/
 .pytype/
+.hypothesis/
 .ipynb_checkpoints/
 
-# ── Node / Frontend ─────────────────────────────────────
+# ------------------------------------------------------------------------------
+# 3. Node.js & Frontend (React / Vite)
+# ------------------------------------------------------------------------------
 node_modules/
 frontend/node_modules/
 frontend/dist/
@@ -47,33 +72,45 @@ frontend/.vite/
 .vite/
 .turbo/
 .next/
+.nuxt/
+.cache/
+
+# NPM / Yarn / PNPM logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# ── Environment & Secrets ───────────────────────────────
+# ------------------------------------------------------------------------------
+# 4. Security, Credentials & Environment Configurations
+# ------------------------------------------------------------------------------
+# Environment variables (NEVER commit secrets or API keys)
 .env
 .env.*
-!.env.example
 *.env
 frontend/.env
 frontend/.env.*
 backend/.env
 backend/.env.*
+
+# Explicitly track sanitized sample templates
+!.env.example
+!frontend/.env.example
+!backend/.env.example
+
+# Cryptographic Keys & Certificates
 *.pem
 *.key
 *.cert
 *.crt
+*.pfx
+*.p12
 
-# ── Databases & Local Storage ───────────────────────────
-*.db
-*.sqlite
-*.sqlite3
-*.duckdb
-
-# ── Model Weights & AI Cache ────────────────────────────
+# ------------------------------------------------------------------------------
+# 5. Machine Learning, Vision Models & Weight Artifacts
+# ------------------------------------------------------------------------------
 *.pt
 *.pth
 *.bin
@@ -82,6 +119,9 @@ backend/.env.*
 *.tflite
 *.pkl
 *.h5
+*.joblib
+
+# Model Hub Caches & Experiment Trackers
 .cache/
 huggingface/
 torch_cache/
@@ -89,7 +129,9 @@ wandb/
 mlruns/
 lightning_logs/
 
-# ── Generated Outputs & Benchmarks ──────────────────────
+# ------------------------------------------------------------------------------
+# 6. Runtime Outputs, Evaluation Dumps & Crawler Storage
+# ------------------------------------------------------------------------------
 backend/evaluation/results.json
 backend/evaluation/report.json
 results/
@@ -98,30 +140,52 @@ tmp/
 temp_screenshots/
 crawled_data/
 exports/
+reports/
 
-# ── Browser Automation / Playwright / E2E ───────────────
+# ------------------------------------------------------------------------------
+# 7. Databases & Local Persistence
+# ------------------------------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+
+# ------------------------------------------------------------------------------
+# 8. Browser Automation & E2E Testing (Playwright / Puppeteer)
+# ------------------------------------------------------------------------------
 test-results/
 playwright-report/
 blob-report/
 .playwright/
 ms-playwright/
 
-# ── OS & IDE Cruft ──────────────────────────────────────
+# ------------------------------------------------------------------------------
+# 9. IDE, Editor & OS-Specific Metadata
+# ------------------------------------------------------------------------------
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
-ehthumbs.db
+
+# Windows
 Thumbs.db
+ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# Editors & IDEs
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
 *.swp
 *.swo
 *.bak
 *~
+
+# AI Editors & Workspace Tools
 .gemini/
 .agents/
 .cursor/
@@ -129,5 +193,7 @@ $RECYCLE.BIN/
 .claude/
 .windsurf/
 
-# ── Legacy ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# 10. Legacy Services
+# ------------------------------------------------------------------------------
 .streamlit/

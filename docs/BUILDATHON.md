@@ -181,7 +181,7 @@ Evaluated on **23 held-out cases across 11 merchant archetypes** (source: `evalu
 | Baseline 3: ViT + dHash | 39.1% | 0.333 | 0.352 | 0.297 | **83.3%** | 0.0% |
 | **Full System** | **26.1%** | 0.095 | 0.333 | 0.148 | **0.0%** | 77.8% |
 
-> The 26.1% aggregate accuracy is an evaluation/policy alignment artifact. The full audit is in `evaluation/HIGH_RISK_AUDIT.md`.
+> The 26.1% aggregate accuracy is an evaluation/policy alignment artifact. The full audit is in [`../backend/evaluation/HIGH_RISK_AUDIT.md`](../backend/evaluation/HIGH_RISK_AUDIT.md).
 
 ---
 

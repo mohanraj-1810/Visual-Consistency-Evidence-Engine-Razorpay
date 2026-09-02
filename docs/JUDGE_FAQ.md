@@ -134,7 +134,7 @@ The 26.1% aggregate accuracy reflects the corroboration gate's intentional conse
 - 2 of 9 were fixture construction problems (synthetic document ELA, single-target forensic routing)
 - 1 of 9 was a genuine pipeline miss (multi-product hybrid catalog)
 
-See `evaluation/HIGH_RISK_AUDIT.md` for the full case-by-case analysis.
+See [`../backend/evaluation/HIGH_RISK_AUDIT.md`](../backend/evaluation/HIGH_RISK_AUDIT.md) for the full case-by-case analysis.
 
 ---
 
