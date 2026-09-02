@@ -291,7 +291,6 @@ def index_analyzed_assets(
     Inserts newly analyzed assets into the persistent ViT cross-merchant index.
     Executed strictly AFTER the final report has been generated.
     """
-    global _LOCAL_VIT_INDEX
     for img, meta in assets_with_images:
         sha_hash = meta.get("sha256")
         if not sha_hash:

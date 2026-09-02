@@ -34,7 +34,6 @@ def load_reference_dataset(reference_dir: Union[str, Path]) -> Dict[str, Tuple[n
     -------
     Dict mapping filename -> (embedding_vector, absolute_path)
     """
-    global _REFERENCE_CACHE, _REFERENCE_CACHE_MANIFEST
     ref_path = Path(reference_dir)
     if not ref_path.exists():
         return {}

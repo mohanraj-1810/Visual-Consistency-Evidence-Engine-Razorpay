@@ -88,8 +88,6 @@ def get_image_embedding(image: Union[Image.Image, str, np.ndarray]) -> np.ndarra
     -------
     np.ndarray : L2-normalized 1D feature embedding vector
     """
-    global _EMBEDDING_CACHE
-
     cache_key = _get_cache_key(image)
     if cache_key and cache_key in _EMBEDDING_CACHE:
         return _EMBEDDING_CACHE[cache_key].copy()
@@ -192,7 +190,6 @@ def compute_cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
 
 def get_model_status() -> Dict[str, Any]:
     """Returns whether ViT or a fallback model is actively used."""
-    global _MODEL, _FALLBACK_MODEL
     if _MODEL is not None:
         return {"model_name": "Vision Transformer (ViT-B/16)", "is_fallback": False}
     elif _FALLBACK_MODEL is not None:
