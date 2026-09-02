@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = ["backend/tests"]
+pythonpath = ["backend"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
